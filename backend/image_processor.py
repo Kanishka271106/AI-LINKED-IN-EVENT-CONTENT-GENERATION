@@ -4,6 +4,7 @@ from PIL import Image, ImageEnhance, ImageStat
 import imagehash
 from typing import List, Tuple, Dict
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 
 class ImageProcessor:
@@ -21,11 +22,27 @@ class ImageProcessor:
         Assess image quality based on multiple metrics
         Returns dict with quality scores
         """
-        # Load image with OpenCV
-        img_cv = cv2.imread(image_path)
-        if img_cv is None:
+        try:
+            # Load with PIL first as it's generally faster for metadata/initial load
+            img_pil = Image.open(image_path)
+            
+            # Optimization: Resize for analysis to speed up OpenCV and face detection
+            # We don't save this, just use it for metric calculation
+            max_dim = 1024
+            w, h = img_pil.size
+            if max(w, h) > max_dim:
+                scale = max_dim / max(w, h)
+                analysis_img_pil = img_pil.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            else:
+                analysis_img_pil = img_pil
+            
+            # Convert PIL to BGR for OpenCV
+            img_cv = cv2.cvtColor(np.array(analysis_img_pil), cv2.COLOR_RGB2BGR)
+            
+        except Exception as e:
+            print(f"   [ERROR] Failed to load image {image_path}: {e}")
             return {
-                "error": "Could not load image",
+                "error": str(e),
                 "quality_score": 0.0,
                 "sharpness_score": 0.0,
                 "face_clarity_score": 0.0,
@@ -37,13 +54,10 @@ class ImageProcessor:
                 "is_high_quality": False
             }
         
-        # Load with PIL for additional analysis
-        img_pil = Image.open(image_path)
-        
         # Calculate base metrics
         sharpness = self._calculate_sharpness(img_cv)
-        brightness = self._calculate_brightness(img_pil)
-        contrast = self._calculate_contrast(img_pil)
+        brightness = self._calculate_brightness(analysis_img_pil)
+        contrast = self._calculate_contrast(analysis_img_pil)
         
         # Detect faces for specialized analysis
         faces = self._detect_faces_raw(img_cv)
@@ -59,7 +73,6 @@ class ImageProcessor:
         contrast_score = min(contrast / 80, 1.0)
         
         # Calculate overall quality score (weighted average)
-        # Weights: Sharpness(30%), Face Clarity(25%), Composition(15%), Brightness(15%), Contrast(15%)
         quality_score = (
             sharpness_score * 0.3 +
             face_clarity * 0.25 +
@@ -227,15 +240,20 @@ class ImageProcessor:
         avg_g = max(avg_g, 0.001)
         avg_r = max(avg_r, 0.001)
         
-        result[:, :, 0] *= (avg_gray / avg_b)
-        result[:, :, 1] *= (avg_gray / avg_g)
-        result[:, :, 2] *= (avg_gray / avg_r)
+        # Blend factor: 0.5 (50% original, 50% gray world) for natural tone
+        target_b = (avg_gray / avg_b) * 0.5 + 0.5
+        target_g = (avg_gray / avg_g) * 0.5 + 0.5
+        target_r = (avg_gray / avg_r) * 0.5 + 0.5
+
+        result[:, :, 0] *= target_b
+        result[:, :, 1] *= target_g
+        result[:, :, 2] *= target_r
         img_cv = np.clip(result, 0, 255).astype(np.uint8)
         
         # 3. Lighting Balance (CLAHE for local contrast/detail)
         lab = cv2.cvtColor(img_cv, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+        clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
         cl = clahe.apply(l)
         limg = cv2.merge((cl, a, b))
         img_cv = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
@@ -245,13 +263,19 @@ class ImageProcessor:
         
         # 4. Smart Multi-step Sharpen
         sharpness_level = self._calculate_sharpness(img_cv)
+        enhancer_sharpness = ImageEnhance.Sharpness(img_pil)
         if sharpness_level < 150:
-            enhancer = ImageEnhance.Sharpness(img_pil)
-            img_pil = enhancer.enhance(1.2)
+            img_pil = enhancer_sharpness.enhance(1.7)
+        else:
+            img_pil = enhancer_sharpness.enhance(1.4)
         
         # Vitality boost (Saturation)
-        enhancer = ImageEnhance.Color(img_pil)
-        img_pil = enhancer.enhance(1.05)
+        enhancer_color = ImageEnhance.Color(img_pil)
+        img_pil = enhancer_color.enhance(1.15)
+
+        # Contrast boost
+        enhancer_contrast = ImageEnhance.Contrast(img_pil)
+        img_pil = enhancer_contrast.enhance(1.10)
         
         img_pil.save(output_path, quality=95, subsampling=0)
         return output_path
@@ -298,21 +322,20 @@ class ImageProcessor:
     
     def batch_process(self, image_paths: List[str]) -> Dict[str, any]:
         """
-        Process multiple images in batch
+        Process multiple images in batch with parallelization
         Returns comprehensive analysis
         """
         results = []
         
-        # Assess quality for all images
-        for img_path in image_paths:
+        def process_single(img_path):
             try:
                 quality_metrics = self.assess_quality(img_path)
                 quality_metrics['path'] = img_path
                 quality_metrics['filename'] = os.path.basename(img_path)
-                results.append(quality_metrics)
+                return quality_metrics
             except Exception as e:
                 print(f"   [ERROR] Failed to process {img_path}: {e}")
-                results.append({
+                return {
                     "error": str(e),
                     "path": img_path,
                     "filename": os.path.basename(img_path),
@@ -320,7 +343,12 @@ class ImageProcessor:
                     "is_blur": True,
                     "is_duplicate": False,
                     "is_high_quality": False
-                })
+                }
+
+        # Use ThreadPoolExecutor for parallel quality assessment
+        # Max workers limited to avoid memory issues with many large images
+        with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as executor:
+            results = list(executor.map(process_single, image_paths))
         
         # Detect duplicates
         duplicates = self.detect_duplicates(image_paths)

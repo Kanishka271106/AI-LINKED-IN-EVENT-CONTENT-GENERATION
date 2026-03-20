@@ -1,4 +1,9 @@
+import os
+from dotenv import load_dotenv
 from backend.caption_generator import CaptionGenerator
+
+# Load environment variables from .env
+load_dotenv()
 
 def test_generation():
     print("Testing CaptionGenerator...")

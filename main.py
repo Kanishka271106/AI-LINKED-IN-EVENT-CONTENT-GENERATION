@@ -21,6 +21,7 @@ import io
 import base64
 import numpy as np
 import cv2
+from concurrent.futures import ThreadPoolExecutor
 
 # Load environment variables
 load_dotenv()
@@ -91,6 +92,13 @@ def startup_event():
         print("   [WARNING] LinkedIn API credentials MISSING in .env file!")
         print("             Social posting features will not work.")
     
+    # Check Gemini AI Config
+    if os.getenv("GEMINI_API_KEY"):
+        print("   [OK] Gemini AI engine configured")
+    else:
+        print("   [WARNING] GEMINI_API_KEY MISSING in .env file!")
+        print("             AI caption generation will use fallback templates.")
+    
     print("\n" + "="*70)
     print("  SERVER READY!")
     print("="*70)
@@ -129,10 +137,15 @@ async def upload_images(
     if len(files) > 20:
         raise HTTPException(status_code=400, detail="Maximum 20 files allowed")
     
+    # Get last authenticated user for association
+    last_token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
+    user_email = last_token.user_email if last_token else None
+
     # Create new event
     event = Event(
         name=f"Event {datetime.now().strftime('%Y%m%d_%H%M%S')}",
-        total_uploaded=len(files)
+        total_uploaded=len(files),
+        user_email=user_email
     )
     db.add(event)
     db.commit()
@@ -168,8 +181,8 @@ async def upload_images(
     image_paths = [f["path"] for f in saved_files]
     processing_results = image_processor.batch_process(image_paths)
     
-    # Save image records to database and enhance selected ones
-    for result in processing_results["all_results"]:
+    # Save image records to database and enhance selected ones in parallel
+    def enhance_and_create_image(result):
         is_selected = result["filename"] in [
             img["filename"] for img in processing_results["selected_images"]
         ]
@@ -177,7 +190,7 @@ async def upload_images(
         # Skip images that failed processing
         if "error" in result and result["error"]:
             print(f"   [WARNING] Skipping failed image: {result['filename']} - {result['error']}")
-            continue
+            return None
             
         filepath = result["path"]
         # Automatically enhance high-quality selected images
@@ -188,22 +201,31 @@ async def upload_images(
             except Exception as e:
                 print(f"   [ERROR] Enhancement failed for {result['filename']}: {e}")
         
-        try:
-            image_record = Image(
-                event_id=event.id,
-                filename=result["filename"],
-                filepath=filepath,
-                quality_score=result["quality_score"],
-                sharpness_score=result.get("sharpness_score", 0.0),
-                brightness_score=result.get("brightness_score", 0.0),
-                contrast_score=result.get("contrast_score", 0.0),
-                is_blur=result.get("is_blur", False),
-                is_duplicate=result.get("is_duplicate", False),
-                is_selected=is_selected
-            )
-            db.add(image_record)
-        except Exception as e:
-            print(f"   [ERROR] Database entry failed for {result['filename']}: {e}")
+        return {
+            "event_id": event.id,
+            "filename": result["filename"],
+            "filepath": filepath,
+            "quality_score": result["quality_score"],
+            "sharpness_score": result.get("sharpness_score", 0.0),
+            "brightness_score": result.get("brightness_score", 0.0),
+            "contrast_score": result.get("contrast_score", 0.0),
+            "is_blur": result.get("is_blur", False),
+            "is_duplicate": result.get("is_duplicate", False),
+            "is_selected": is_selected
+        }
+
+    # Enhancement can be CPU heavy, but IO bound for saving
+    with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as executor:
+        image_data_list = list(executor.map(enhance_and_create_image, processing_results["all_results"]))
+
+    # Save to DB (must be in main thread or handle session carefully)
+    for img_data in image_data_list:
+        if img_data:
+            try:
+                image_record = Image(**img_data)
+                db.add(image_record)
+            except Exception as e:
+                print(f"   [ERROR] Database entry failed for {img_data['filename']}: {e}")
     
     # Update event stats
     event.total_selected = len(processing_results["selected_images"])
@@ -253,8 +275,10 @@ async def get_event_images(event_id: int, db: Session = Depends(get_db)):
     return {
         "event_id": event_id,
         "event_name": event.name,
+        "created_at": event.created_at.isoformat(),
         "total_images": len(images),
         "total_selected": event.total_selected,
+        "user_email": event.user_email,
         "images": [
             {
                 "id": img.id,
@@ -370,16 +394,45 @@ async def edit_image_endpoint(image_id: int, request: EditRequest, db: Session =
         if request.mask and "base64," in request.mask:
             header, data = request.mask.split("base64,")
             mask_bytes = base64.b64decode(data)
-            mask_img = PILImage.open(io.BytesIO(mask_bytes)).convert("L")
-            # Resize mask to match cropped image if needed
-            mask_img = mask_img.resize(img.size, PILImage.Resampling.LANCZOS)
             
-            # Simple erase: where mask is white (drawn), we fill with neutral/blurred color
-            # or just paste over with white for now as a "brush"
-            # To actually "erase" in a meaningful way, we'd need inpainting.
-            # For now, we'll just let the user paint over with white (since mask is white)
-            overlay = PILImage.new("RGB", img.size, (255, 255, 255))
-            img.paste(overlay, (0, 0), mask_img)
+            # Improved erase: Use OpenCV inpainting for natural fill
+            # 1. Convert PIL image to OpenCV BGR
+            img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            
+            # 2. Process mask
+            # Convert base64 mask to OpenCV image
+            mask_np = np.frombuffer(mask_bytes, dtype=np.uint8)
+            mask_img_cv = cv2.imdecode(mask_np, cv2.IMREAD_UNCHANGED)
+            
+            # CRITICAL: Crop the mask using the same coordinates as the image
+            # The mask was drawn on the FULL image in the editor
+            # Ensure coordinates are within bounds of the mask
+            mh, mw = mask_img_cv.shape[:2]
+            x1, y1 = max(0, c.x), max(0, c.y)
+            x2, y2 = min(mw, c.x + c.width), min(mh, c.y + c.height)
+            mask_img_cv = mask_img_cv[y1:y2, x1:x2]
+            
+            # Ensure mask matches cropped image size exactly (handling rounding differences)
+            if mask_img_cv.shape[:2] != img_cv.shape[:2]:
+                mask_img_cv = cv2.resize(mask_img_cv, (img_cv.shape[1], img_cv.shape[0]))
+            
+            # Get mask from alpha channel or grayscale
+            if mask_img_cv.shape[2] == 4:
+                _, mask_final = cv2.threshold(mask_img_cv[:, :, 3], 10, 255, cv2.THRESH_BINARY)
+            else:
+                gray_mask = cv2.cvtColor(mask_img_cv, cv2.COLOR_BGR2GRAY)
+                _, mask_final = cv2.threshold(gray_mask, 10, 255, cv2.THRESH_BINARY)
+            
+            # Dilation: Expand the mask slightly to cover edges of the erased object better
+            kernel = np.ones((5,5), np.uint8)
+            mask_final = cv2.dilate(mask_final, kernel, iterations=1)
+            
+            # 3. Apply Inpainting
+            # Using Telea algorithm with larger radius for better fill
+            inpainted = cv2.inpaint(img_cv, mask_final, 7, cv2.INPAINT_TELEA)
+            
+            # 4. Convert back to PIL
+            img = PILImage.fromarray(cv2.cvtColor(inpainted, cv2.COLOR_BGR2RGB))
 
         # Save new version
         base, ext = os.path.splitext(image.filepath)
@@ -491,16 +544,61 @@ async def auth_status(db: Session = Depends(get_db)):
     }
 
 
-# ============= Caption Generation =============
+# ============= Caption Generation & Preferences =============
+
+class PreferenceRequest(BaseModel):
+    include_hashtags: bool
+    custom_hashtags: Optional[str] = None
 
 class CaptionRequest(BaseModel):
     event_id: int
     keywords: Optional[List[str]] = None
     custom_context: Optional[str] = None
 
+@app.get("/api/preferences")
+async def get_preferences(db: Session = Depends(get_db)):
+    """Get user caption preferences"""
+    from backend.database import UserPreference
+    prefs = db.query(UserPreference).order_by(UserPreference.updated_at.desc()).first()
+    
+    if not prefs:
+        # Return default preferences
+        return {
+            "include_hashtags": True,
+            "custom_hashtags": ""
+        }
+    
+    return {
+        "include_hashtags": prefs.include_hashtags,
+        "custom_hashtags": prefs.custom_hashtags or ""
+    }
+
+@app.post("/api/preferences")
+async def update_preferences(request: PreferenceRequest, db: Session = Depends(get_db)):
+    """Update user caption preferences"""
+    from backend.database import UserPreference
+    
+    # For MVP, we use a single global preference record (or per user if we had auth)
+    prefs = db.query(UserPreference).first()
+    
+    if not prefs:
+        prefs = UserPreference(
+            include_hashtags=request.include_hashtags,
+            custom_hashtags=request.custom_hashtags
+        )
+        db.add(prefs)
+    else:
+        prefs.include_hashtags = request.include_hashtags
+        prefs.custom_hashtags = request.custom_hashtags
+    
+    db.commit()
+    return {"success": True}
+
 @app.post("/api/generate-caption")
 async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depends(get_db)):
     """Generate AI caption for the event"""
+    from backend.database import UserPreference
+    
     event = db.query(Event).filter(Event.id == request.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -515,11 +613,19 @@ async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depen
         # Fallback to total uploaded if none selected yet
         selected_count = event.total_uploaded
     
+    # Fetch preferences
+    prefs_record = db.query(UserPreference).order_by(UserPreference.updated_at.desc()).first()
+    preferences = {
+        "include_hashtags": prefs_record.include_hashtags if prefs_record else True,
+        "custom_hashtags": prefs_record.custom_hashtags if prefs_record else ""
+    }
+    
     caption = caption_generator.generate_caption(
         event_name=event.name,
         num_photos=selected_count,
         keywords=request.keywords,
-        custom_context=request.custom_context
+        custom_context=request.custom_context,
+        preferences=preferences
     )
     
     return {"caption": caption}
@@ -639,19 +745,133 @@ async def get_logs(db: Session = Depends(get_db)):
 
 @app.get("/api/stats")
 async def get_stats(db: Session = Depends(get_db)):
-    """Get application statistics"""
+    """Get application statistics with user-specific data"""
     
+    # Global stats
     total_events = db.query(Event).count()
     total_images = db.query(Image).count()
     total_posts = db.query(Post).filter(Post.status == "success").count()
-    total_selected = db.query(Image).filter(Image.is_selected == True).count()
+    
+    # User-specific stats (based on last authenticated LinkedIn user)
+    last_token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
+    user_email = last_token.user_email if last_token else None
+    
+    user_posts = 0
+    user_images = 0
+    
+    if user_email:
+        # Get events created by this user
+        user_events = db.query(Event).filter(Event.user_email == user_email).all()
+        user_event_ids = [e.id for e in user_events]
+        
+        if user_event_ids:
+            user_posts = db.query(Post).filter(
+                Post.event_id.in_(user_event_ids),
+                Post.status == "success"
+            ).count()
+            
+            user_images = db.query(Image).filter(
+                Image.event_id.in_(user_event_ids),
+                Image.is_posted == True
+            ).count()
     
     return {
         "total_events": total_events,
         "total_images_processed": total_images,
-        "total_images_selected": total_selected,
-        "total_posts": total_posts
+        "total_posts": total_posts,
+        "user_posts": user_posts,
+        "user_images": user_images,
+        "authenticated": last_token is not None,
+        "user_email": user_email
     }
+
+@app.get("/api/analytics")
+async def get_analytics(db: Session = Depends(get_db)):
+    """Get aggregated analytics data for charts"""
+    from sqlalchemy import func
+    
+    # 1. Events over time (last 30 days)
+    events_by_date = db.query(
+        func.date(Event.created_at).label('date'),
+        func.count(Event.id).label('count')
+    ).group_by(func.date(Event.created_at)).order_by(func.date(Event.created_at)).limit(30).all()
+    
+    # 2. Posts over time
+    posts_by_date = db.query(
+        func.date(Post.posted_at).label('date'),
+        func.count(Post.id).label('count')
+    ).filter(Post.status == "success").group_by(func.date(Post.posted_at)).order_by(func.date(Post.posted_at)).limit(30).all()
+    
+    # 3. Quality distribution
+    quality_ranges = {
+        "Low (<50%)": db.query(Image).filter(Image.quality_score < 0.5).count(),
+        "Medium (50-80%)": db.query(Image).filter(Image.quality_score >= 0.5, Image.quality_score < 0.8).count(),
+        "High (>80%)": db.query(Image).filter(Image.quality_score >= 0.8).count()
+    }
+    
+    return {
+        "events_timeline": [{"date": str(r.date), "count": r.count} for r in events_by_date],
+        "posts_timeline": [{"date": str(r.date), "count": r.count} for r in posts_by_date],
+        "quality_distribution": quality_ranges
+    }
+
+@app.get("/api/activity")
+async def get_recent_activity(db: Session = Depends(get_db)):
+    """Get recent activities for dashboard widget"""
+    activities = []
+    
+    # Get last 5 successful posts
+    posts = db.query(Post).filter(Post.status == "success").order_by(Post.posted_at.desc()).limit(5).all()
+    for post in posts:
+        event = db.query(Event).filter(Event.id == post.event_id).first()
+        activities.append({
+            "type": "post",
+            "title": f"LinkedIn Post Shared",
+            "subtitle": f"{post.num_images} photos from {event.name if event else 'Unknown Event'}",
+            "time": post.posted_at.isoformat(),
+            "status": "success",
+            "id": post.id
+        })
+    
+    # Get last 5 events
+    events = db.query(Event).order_by(Event.created_at.desc()).limit(5).all()
+    for event in events:
+        activities.append({
+            "type": "event",
+            "title": f"New Event Created",
+            "subtitle": f"{event.total_uploaded} photos uploaded",
+            "time": event.created_at.isoformat(),
+            "status": "info",
+            "id": event.id
+        })
+    
+    # Sort combined activities by time
+    activities.sort(key=lambda x: x["time"], reverse=True)
+    
+    return {"activities": activities[:5]}
+
+@app.get("/api/events")
+async def get_events_history(db: Session = Depends(get_db)):
+    """Get all events with their summary details"""
+    events = db.query(Event).order_by(Event.created_at.desc()).all()
+    
+    results = []
+    for event in events:
+        # Check if this event has any successful posts
+        post = db.query(Post).filter(Post.event_id == event.id, Post.status == "success").first()
+        
+        results.append({
+            "id": event.id,
+            "name": event.name,
+            "created_at": event.created_at.isoformat(),
+            "total_uploaded": event.total_uploaded,
+            "total_selected": event.total_selected,
+            "user_email": event.user_email,
+            "status": "Posted" if post else "Draft",
+            "post_id": post.id if post else None
+        })
+        
+    return {"events": results}
 
 
 # ============= Health Check =============

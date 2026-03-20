@@ -81,6 +81,23 @@ class LinkedInToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class UserPreference(Base):
+    """Stores user's AI caption preferences"""
+    __tablename__ = "user_preferences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, unique=True, nullable=True)
+    tone = Column(String, default="Professional")  # Professional, Enthusiastic, Storytelling, Humorous
+    length = Column(String, default="Medium")       # Short, Medium, Long
+    audience = Column(String, default="All Professionals") # New: Industry Professionals, Recruiters, Coworkers
+    cta_type = Column(String, default="None")       # New: Engagement, Direct Connection, Profile Visit
+    focus = Column(String, default="General")      # New: Event Atmosphere, Learning, Networking
+    include_hashtags = Column(Boolean, default=True)
+    custom_hashtags = Column(String, nullable=True) # Custom tags to always include
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(bind=engine)

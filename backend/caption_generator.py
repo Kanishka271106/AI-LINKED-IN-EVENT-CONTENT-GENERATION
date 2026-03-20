@@ -18,81 +18,78 @@ class CaptionGenerator:
             except Exception as e:
                 print(f"Failed to configure Gemini API: {e}")
     
-    def generate_caption(self, event_name: str, num_photos: int, keywords: Optional[List[str]] = None, custom_context: Optional[str] = None) -> str:
+    def generate_caption(self, event_name: str, num_photos: int, keywords: Optional[List[str]] = None, custom_context: Optional[str] = None, preferences: Optional[dict] = None) -> str:
         """
-        Generate a professional LinkedIn caption based on event context
+        Generate a professional LinkedIn caption based on event context and user preferences
         """
         if not self.is_configured:
             return self._generate_mock_caption(event_name, num_photos, custom_context)
             
         try:
-            prompt = self._create_prompt(event_name, num_photos, keywords, custom_context)
+            prompt = self._create_prompt(event_name, num_photos, keywords, custom_context, preferences)
             response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise ValueError("Empty response from Gemini API")
             return response.text
         except Exception as e:
-            print(f"Error generating caption: {e}")
+            print(f"[ERROR] Caption generation failed: {e}")
             return self._generate_mock_caption(event_name, num_photos, custom_context)
             
-    def _create_prompt(self, event_name: str, num_photos: int, keywords: Optional[List[str]], custom_context: Optional[str]) -> str:
-        """Create a prompt for the LLM"""
+    def _create_prompt(self, event_name: str, num_photos: int, keywords: Optional[List[str]], custom_context: Optional[str], preferences: Optional[dict]) -> str:
+        """Create a precision prompt for the LLM to generate paragraph-style captions"""
+        include_hashtags = preferences.get("include_hashtags", True) if preferences else True
+        custom_hashtags = preferences.get("custom_hashtags", "") if preferences else ""
+
         base_prompt = f"""
-        Write a professional, engaging LinkedIn post caption for an event.
+        Objective: Write a high-impact, detailed LinkedIn post.
         - Event Name: {event_name}
-        - Context: Sharing {num_photos} highlights from the event.
+        - Photo count shared: {num_photos}
         """
         
         if custom_context:
-            base_prompt += f"\n- User Instructions: {custom_context}\n"
-            base_prompt += "- IMPORTANT: Follow the User Instructions above strictly."
-        else:
-            base_prompt += """
-            - Tone: Professional, enthusiastic, grateful, networking-focused.
-            - Structure: Hook -> Body (Event highlights) -> Call to Action (Networking).
-            """
-            
-        base_prompt += "\n- Hashtags: Include 3-5 relevant hashtags at the end."
+            base_prompt += f"\n- User's Specific Details/Opinion: {custom_context}\n"
+            base_prompt += "- CRITICAL: Naturally weave these specific details throughout the post. Expand on them significantly. It should sound like the user's authentic, detailed voice."
+
+        base_prompt += f"""
         
+        Guidelines:
+        1. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs for readability.
+        2. Content Expansion: Elaborate on the event ({event_name}), why the {num_photos} photos matter, the atmosphere, key learnings, and future outlook. Do not just state facts; provide insights and reflections.
+        3. Style: Professional yet highly engaging and conversational for LinkedIn.
+        4. No Intro/Outro: Do NOT include "Here is your caption" or any other commentary.
+        5. formatting: Use **bolding** for emphasis on key names or the event name, and consider using bullet points if appropriate for key takeaways.
+        """
+        
+        if include_hashtags:
+            base_prompt += "\n6. Hashtags: Include 3-5 relevant hashtags at the VERY END, separated from the paragraph by a line break."
+            if custom_hashtags:
+                base_prompt += f" Must include: {custom_hashtags}"
+        else:
+            base_prompt += "\n6. No Hashtags: Do NOT include any hashtags."
+            
         if keywords:
             base_prompt += f"\nKeywords to include: {', '.join(keywords)}\n"
-            
-        base_prompt += "\noutput only the caption text."
-        return base_prompt
+
+        return base_prompt.strip()
 
     def _generate_mock_caption(self, event_name: str, num_photos: int, custom_context: Optional[str] = None) -> str:
         """Fallback mock caption if API is not configured"""
         
+        # Log notice without emojis for terminal safety on some Windows systems
+        print("[NOTICE] Gemini API Key not found. Using pre-defined professional templates.")
+        
         # Determine the focal point of the event
         display_name = event_name
+        opinion = ""
         if custom_context and len(custom_context.strip()) > 0:
-            # If the user provided a short context, it might be the actual event name
-            if len(custom_context.split()) <= 4:
-                display_name = custom_context.strip()
-            # Otherwise use it as part of the context
+            opinion = f" {custom_context}."
         
         templates = [
-            f"Here are some highlights from {display_name}! 📸\n\n"
-            f"Had an amazing time connecting with industry professionals and sharing insights at {display_name}. "
-            f"Events like these remind me of the power of networking and community.\n\n"
-            f"Enjoy these {num_photos} selected moments!\n\n"
-            f"#Networking #{display_name.replace(' ', '')} #ProfessionalDevelopment #EventHighlights",
+            f"It was an absolute privilege to participate in **{display_name}** this week! 🎉{opinion}\n\nFrom the moment the event kicked off, the energy was palpable. I had the incredible opportunity to connect with some of the brightest minds and most forward-thinking industry leaders in our space. 🚀 We explored innovative ideas, tackled complex challenges, and shared insights that I know will shape the future of our work.\n\nEvents like these are a powerful reminder of why I love what I do—it’s not just about the technology or the strategy; it’s about the fantastic community of professionals who drive progress forward every single day. 🤝\n\nI’m walking away with fresh perspectives, actionable takeaways, and a renewed sense of purpose. A huge thank you to the organizers, speakers, and everyone I had the pleasure of meeting. Let’s keep the conversation going! 💬\n\nSharing these {num_photos} photos to capture the vibrant energy and unforgettable moments of the day. 📸✨\n\n#Networking #EventHighlights #{display_name.replace(' ', '')} #ProfessionalGrowth #Community #Innovation",
             
-            f"Throwback to {display_name} ✨\n\n"
-            f"Incredible energy and great conversations. Grateful to have been part of such a well-organized event. "
-            f"Here are my top {num_photos} photos from the day.\n\n"
-            f"Which one is your favorite?\n\n"
-            f"#Community #{display_name.replace(' ', '')} #Leadership #Growth",
+            f"I am still buzzing from the incredible experience at **{display_name}** today! ✨{opinion}\n\nThe sessions were absolutely packed with value, delivering deep dives into the trends and strategies that are redefining our industry. 📈 I'm walking away with several key takeaways that I am eager to implement with my team immediately.\n\nIt’s always so inspiring to see so much raw talent, passion, and dedication gathered in one place. The conversations I had between sessions were just as valuable as the keynotes—proving once again that the power of connection is unmatched. 🤝💡\n\nI want to extend my gratitude to the hosts for putting together such a seamless and impactful event. The insights gained here will undoubtedly drive my work forward in the coming months. 🚀\n\nHere are {num_photos} highlights from the event that really stood out to me and captured the essence of the experience. 📸👇\n\n#Learning #Innovation #{display_name.replace(' ', '')} #Success #TechTrends #Leadership",
             
-            f"Just wrapped up at {display_name}! 🚀\n\n"
-            f"So much learning and new connections made. It's always inspiring to be surrounded by driven individuals. "
-            f"Sharing a glimpse of the experience through these {num_photos} photos.\n\n"
-            f"Let's keep the conversation going in the comments! 👇\n\n"
-            f"#Business #Networking #{display_name.replace(' ', '')} #Success"
+            f"What a phenomenal day at **{display_name}**! 🌟{opinion}\n\nBeyond the cutting-edge technical insights and deeply informative presentations, the true highlight for me was definitely the meaningful conversations and the wealth of new connections made. 🤝 Building relationships with peers who share the same drive for excellence is invaluable.\n\nWe discussed everything from emerging industry shifts to practical problem-solving strategies, and I couldn't be more energized. ⚡ It is environments like this that foster real innovation and collaborative breakthroughs.\n\nI am really looking forward to carrying this incredible momentum into my future projects and seeing where these new collaborations might lead. 🚀\n\nI put together a carousel of {num_photos} moments from the experience—swipe through to see some of my favorite highlights! 📸✨\n\n#Business #Connectivity #{display_name.replace(' ', '')} #CareerDevelopment #Networking #FutureOfWork"
         ]
         
-        caption = random.choice(templates)
-        
-        # If there's a long custom context, append it or integrate it
-        if custom_context and len(custom_context.split()) > 4:
-            caption = f"{custom_context}\n\n---\n\n{caption}"
-            
-        return caption
+        return random.choice(templates)

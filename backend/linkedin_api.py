@@ -226,7 +226,7 @@ class LinkedInAPI:
         """
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
-            response = requests.get(f"{self.api_base}/me", headers=headers)
+            response = requests.get("https://api.linkedin.com/v2/userinfo", headers=headers)
             return response.status_code == 200
         except:
             return False
