@@ -195,7 +195,8 @@ Free to use for personal and internal purposes.
 
 ## 👤 Author
 
-**Mourish Antony**
+**Kanishka**  
+GitHub: https://github.com/Kanishka271106
 
 ---
 
