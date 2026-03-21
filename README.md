@@ -64,19 +64,21 @@ copy .env.example .env
    - Request access to **"Share on LinkedIn"** and **"Sign In with LinkedIn"**
 6. Copy your **Client ID** and **Client Secret** to `.env` file
 
-### Running the Application
+### Running with Docker
 
-1. Start the FastAPI server:
+1. Build the Docker image:
 ```bash
-python main.py
+docker build -t curator .
 ```
 
-2. Open your browser and navigate to:
-```
-http://localhost:8000
+2. Run the container:
+```bash
+docker run -p 8000:8000 --env-file .env curator
 ```
 
-3. The application will be ready to use!
+The application will be available at `http://localhost:8000`.
+
+### Running the Application (Local)
 
 ## 📖 How to Use
 
