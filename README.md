@@ -26,8 +26,8 @@ Professionals spend 2-3 hours per event manually selecting, editing, and posting
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/mourishantony/AI-Driven-LinkedIn-Event-Content-Generation.git
-cd AI-Driven-LinkedIn-Event-Content-Generation
+git clone https://github.com/Kanishka271106/AI-LINKED-IN-EVENT-CONTENT-GENERATION.git
+   cd AI-LINKED-IN-EVENT-CONTENT-GENERATION
 ```
 
 2. Create a virtual environment:
@@ -86,8 +86,13 @@ http://localhost:8000
    - Removes blurry and duplicate images
    - Selects the top 10 images
 3. **Review & Override**: Manually deselect/reselect images if needed
-4. **Connect LinkedIn**: Authorize the app to post on your behalf
-5. **Post**: Click "Post to LinkedIn" to share selected images
+4. **Professional Enhancement**
+- **Auto-Enhance:** Applies professional-grade white balance, contrast, and sharpening.
+- **Image Editor:** Built-in tool for manual cropping, adjustments, and AI-powered object erasing.
+5. **Intelligent Copywriting**
+   **AI Captions:** Generates engaging, context-aware LinkedIn captions using **Google Gemini AI**.
+6. **Connect LinkedIn**: Authorize the app to post on your behalf
+7. **Post**: Click "Post to LinkedIn" to share selected images
 
 ## 🏗️ Project Structure
 
