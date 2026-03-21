@@ -476,7 +476,9 @@ async def linkedin_callback(code: str = None, error: str = None, error_descripti
         return RedirectResponse(url=f"/?auth=error&reason={reason_enc}&desc={desc_enc}")
 
     if not code:
-        return RedirectResponse(url="/?auth=error&reason=no_code")
+        print(f"   [ERROR] LinkedIn Callback hit WITHOUT 'code' parameter. Redirect URI might be misconfigured.")
+        print(f"           Full Request URL: {request.url}")
+        return RedirectResponse(url="/?auth=error&reason=no_code&detail=LinkedIn_did_not_provide_an_authorization_code_check_Redirect_URI")
     
     try:
         # Exchange code for token
