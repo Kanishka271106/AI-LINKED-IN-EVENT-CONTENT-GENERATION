@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 load_dotenv()
 
 # Initialize FastAPI app
-app = FastAPI(title="LinkedIn Event Photo Curator", version="1.0.0")
+app = FastAPI(title="Curator", version="1.0.0")
 
 class CropData(BaseModel):
     x: int
@@ -76,7 +76,7 @@ caption_generator = CaptionGenerator()
 @app.on_event("startup")
 def startup_event():
     print("\n" + "="*70)
-    print("  LinkedIn Event Photo Curator - AI-Powered Content Generation")
+    print("  Curator - AI-Powered Content Generation")
     print("="*70)
     print("\n  Initializing application...")
     
@@ -193,13 +193,8 @@ async def upload_images(
             return None
             
         filepath = result["path"]
-        # Automatically enhance high-quality selected images
-        if is_selected and not result.get("is_blur"):
-            try:
-                print(f"   [AI] Enhancing best photo (fast mode): {result['filename']} (Score: {result['quality_score']})")
-                filepath = image_processor.enhance_image(filepath, fast=True)
-            except Exception as e:
-                print(f"   [ERROR] Enhancement failed for {result['filename']}: {e}")
+        # Automatic enhancement removed per user request. 
+        # Curation logic remains (is_selected), but images stay original initially.
         
         return {
             "event_id": event.id,
@@ -231,7 +226,7 @@ async def upload_images(
     event.total_selected = len(processing_results["selected_images"])
     db.commit()
     
-    print(f"   [DONE] Event {event.id} processed. {event.total_selected} images selected and enhanced.")
+    print(f"   [DONE] Event {event.id} processed. {event.total_selected} images selected as candidates.")
     
     # Create response with image IDs
     response_images = []

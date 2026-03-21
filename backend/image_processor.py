@@ -253,7 +253,7 @@ class ImageProcessor:
         # 3. Lighting Balance (CLAHE for local contrast/detail)
         lab = cv2.cvtColor(img_cv, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
+        clahe = cv2.createCLAHE(clipLimit=2.6, tileGridSize=(8, 8))
         cl = clahe.apply(l)
         limg = cv2.merge((cl, a, b))
         img_cv = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
@@ -265,17 +265,17 @@ class ImageProcessor:
         sharpness_level = self._calculate_sharpness(img_cv)
         enhancer_sharpness = ImageEnhance.Sharpness(img_pil)
         if sharpness_level < 150:
-            img_pil = enhancer_sharpness.enhance(1.7)
+            img_pil = enhancer_sharpness.enhance(1.9) # Higher sharpening for softer images
         else:
-            img_pil = enhancer_sharpness.enhance(1.4)
+            img_pil = enhancer_sharpness.enhance(1.6) # Moderate sharpening for sharp images
         
-        # Vitality boost (Saturation)
+        # Vitality boost (Saturation and Contrast)
         enhancer_color = ImageEnhance.Color(img_pil)
-        img_pil = enhancer_color.enhance(1.15)
+        img_pil = enhancer_color.enhance(1.18) # Slightly more vibrant
 
-        # Contrast boost
+        # Contrast boost for "pro" look
         enhancer_contrast = ImageEnhance.Contrast(img_pil)
-        img_pil = enhancer_contrast.enhance(1.10)
+        img_pil = enhancer_contrast.enhance(1.15) 
         
         img_pil.save(output_path, quality=95, subsampling=0)
         return output_path
