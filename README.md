@@ -90,7 +90,7 @@ http://localhost:8000
    - Use the **Image Editor** to crop, adjust filters, or use the **Erase Tool** to remove unwanted objects.
 4. **Content Generation**:
    - Click **"Generate AI Caption"** to get a professional, context-aware post draft from Gemini AI.
-   - Refine the caption manually or adjust your tone preferences in the settings.
+   - Refine the caption manually.
 5. **Review & Override**: Manually deselect/reselect images and review your final post content.
 6. **Connect LinkedIn**: Authorize the app via the "Connect LinkedIn" button using the secure OAuth flow.
 7. **Post**: Click "Post to LinkedIn" to share your curated highlights directly!
