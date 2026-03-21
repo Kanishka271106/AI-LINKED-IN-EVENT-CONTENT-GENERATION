@@ -80,14 +80,20 @@ http://localhost:8000
 
 ## 📖 How to Use
 
-1. **Upload Photos**: Click the upload area and select 10-15 event photos
+1. **Upload Photos**: Click the upload area and select 10-15 event photos.
 2. **AI Processing**: The system automatically:
    - Analyzes image quality (sharpness, lighting, composition)
    - Removes blurry and duplicate images
-   - Selects the top 10 images
-3. **Review & Override**: Manually deselect/reselect images if needed
-4. **Connect LinkedIn**: Authorize the app to post on your behalf
-5. **Post**: Click "Post to LinkedIn" to share selected images
+   - Selects the top 10 images.
+3. **Enhancement**: 
+   - Use the **Magic Wand (✨)** button on any image card for instant high-quality enhancement.
+   - Use the **Image Editor** to crop, adjust filters, or use the **Erase Tool** to remove unwanted objects.
+4. **Content Generation**:
+   - Click **"Generate AI Caption"** to get a professional, context-aware post draft from Gemini AI.
+   - Refine the caption manually or adjust your tone preferences in the settings.
+5. **Review & Override**: Manually deselect/reselect images and review your final post content.
+6. **Connect LinkedIn**: Authorize the app via the "Connect LinkedIn" button using the secure OAuth flow.
+7. **Post**: Click "Post to LinkedIn" to share your curated highlights directly!
 
 ## 🏗️ Project Structure
 
