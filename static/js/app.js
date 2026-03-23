@@ -910,12 +910,55 @@ function hideTyping() {
 }
 
 /**
- * Legacy generateCaption kept for internal compatibility if needed, 
- * but redirected to startChat flow for user actions.
+ * Generates a one-shot AI caption using the legacy endpoint
  */
 async function generateCaption(silent = false) {
-    if (!silent) initChat();
-    return postCaption.value;
+    if (!currentEventId) {
+        if (!silent) showToast('Please upload images first', 'error');
+        return null;
+    }
+
+    if (!silent) {
+        generateCaptionBtn.disabled = true;
+        generateCaptionBtn.innerHTML = '<span class="spinner-sm"></span> Generating...';
+    }
+
+    try {
+        const response = await fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event_id: currentEventId,
+                custom_context: postCaption.value.trim() || null
+            })
+        });
+
+        if (!response.ok) throw new Error('AI Generation failed');
+
+        const data = await response.json();
+        postCaption.value = data.caption;
+        
+        // Show the preview section
+        finalCaptionSection.style.display = 'block';
+        postCaption.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        if (!silent) {
+            showToast('AI caption generated!', 'success');
+            generateCaptionBtn.disabled = false;
+            generateCaptionBtn.textContent = 'Auto-Generate Caption';
+        }
+
+        return data.caption;
+
+    } catch (error) {
+        console.error('Generation error:', error);
+        if (!silent) {
+            showToast('Failed to generate AI caption', 'error');
+            generateCaptionBtn.disabled = false;
+            generateCaptionBtn.textContent = 'Auto-Generate Caption';
+        }
+        return null;
+    }
 }
 
 // ==================== Post to LinkedIn ====================
