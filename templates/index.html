@@ -172,39 +172,38 @@
                             <!-- Images will be dynamically inserted here -->
                         </div>
 
-                        <!-- AI Content Assistant Section -->
+                        <!-- AI Caption Generation Section -->
                         <div class="post-section" id="postSection">
                             <div class="assistant-card">
                                 <div class="assistant-header">
                                     <div class="assistant-title">
                                         <div class="ai-sparkle">
-                                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" style="width:20px;height:20px;">
                                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
                                             </svg>
                                         </div>
-                                        <h3>AI Content Assistant</h3>
+                                        <h3 style="font-family:var(--font-heading);font-size:1.1rem;font-weight:700;color:var(--gray-900);">AI Caption Generator</h3>
                                     </div>
                                     <div class="assistant-meta">
-                                        <span id="selectedCount">0</span> images selected
+                                        <span id="selectedCount">0</span> photos selected
                                     </div>
                                 </div>
 
-                                <div class="chat-container-wrapper">
-                                    <div class="chat-welcome" style="text-align: center; padding: 2rem 1rem;">
-                                        <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">Analyze your selected photos and generate a professional LinkedIn post with one click.</p>
-                                        <button class="btn btn-primary btn-large" id="generateCaptionBtn" style="min-width: 250px;">
-                                            Generate AI Caption
-                                        </button>
-                                    </div>
+                                <!-- Generate button + prompt text -->
+                                <div style="text-align:center;padding:1.5rem 1rem 1rem;">
+                                    <p style="margin-bottom:1.25rem;color:var(--gray-500);font-size:0.95rem;">Analyze your selected photos and generate a professional LinkedIn post with one click.</p>
+                                    <button class="btn btn-primary btn-large" id="generateCaptionBtn" style="min-width:240px;">
+                                        ✨ Generate AI Caption
+                                    </button>
                                 </div>
 
-                                <!-- Final Caption Preview -->
+                                <!-- Final Caption Preview (hidden until generated) -->
                                 <div class="final-caption-section" id="finalCaptionSection" style="display: none;">
                                     <div class="preview-header">
                                         <label>Final LinkedIn Post</label>
                                         <button class="btn-text" id="copyCaptionBtn">Copy</button>
                                     </div>
-                                    <textarea id="postCaption" rows="6" placeholder="Your perfectly crafted post will appear here..."></textarea>
+                                    <textarea id="postCaption" rows="8" placeholder="Your perfectly crafted post will appear here..."></textarea>
                                     
                                     <div class="post-actions">
                                         <button class="btn btn-linkedin btn-large" id="postToLinkedInBtn" disabled>
