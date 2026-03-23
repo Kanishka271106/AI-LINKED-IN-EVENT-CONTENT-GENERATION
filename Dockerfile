@@ -30,5 +30,5 @@ RUN mkdir -p uploads static/css static/js templates
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application using Gunicorn with Uvicorn workers
-CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8000}"]
+# Command to run the application
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
