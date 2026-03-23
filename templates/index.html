@@ -190,31 +190,11 @@
                                 </div>
 
                                 <div class="chat-container-wrapper">
-                                    <div class="chat-messages" id="chatMessages">
-                                        <!-- Messages will be dynamically inserted here -->
-                                        <div class="chat-welcome">
-                                            <p>I've analyzed your event photos. Choose how you'd like to create your post:</p>
-                                            <div class="assistant-actions">
-                                                <button class="btn btn-primary" id="generateCaptionBtn">
-                                                    Auto-Generate Caption
-                                                </button>
-                                                <button class="btn btn-secondary" id="startChatBtn">
-                                                    Start AI Assistant 
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="chat-input-area" id="chatInputArea" style="display: none;">
-                                        <div class="input-wrapper">
-                                            <input type="text" id="chatUserInput" placeholder="e.g. 'Make it shorter' or 'Add more about Python'..." autocomplete="off">
-                                            <button id="sendChatBtn" class="btn-icon-only">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                                </svg>
-                                            </button>
-                                        </div>
+                                    <div class="chat-welcome" style="text-align: center; padding: 2rem 1rem;">
+                                        <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">Analyze your selected photos and generate a professional LinkedIn post with one click.</p>
+                                        <button class="btn btn-primary btn-large" id="generateCaptionBtn" style="min-width: 250px;">
+                                            Generate AI Caption
+                                        </button>
                                     </div>
                                 </div>
 

@@ -39,16 +39,9 @@ const viewAnalytics = document.getElementById('viewAnalytics');
 const eventsHistoryTable = document.getElementById('eventsHistoryTable');
 const historySearch = document.getElementById('historySearch');
 
-// AI Assistant Elements
-const chatMessages = document.getElementById('chatMessages');
-const chatUserInput = document.getElementById('chatUserInput');
-const sendChatBtn = document.getElementById('sendChatBtn');
-const startChatBtn = document.getElementById('startChatBtn');
-const chatInputArea = document.getElementById('chatInputArea');
+// Final Caption elements
 const finalCaptionSection = document.getElementById('finalCaptionSection');
 const copyCaptionBtn = document.getElementById('copyCaptionBtn');
-
-let chatSessionId = null;
 
 const detailsModal = document.getElementById('detailsModal');
 const detailsGallery = document.getElementById('detailsGallery');
@@ -123,11 +116,11 @@ function setupEventListeners() {
     // Post to LinkedIn
 
 
-    // AI Assistant Actions
-    if (startChatBtn) startChatBtn.addEventListener('click', initChat);
-    if (sendChatBtn) sendChatBtn.addEventListener('click', sendChatMessage);
-    if (chatUserInput) chatUserInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendChatMessage();
+    // Caption actions
+    if (copyCaptionBtn) copyCaptionBtn.addEventListener('click', () => {
+        postCaption.select();
+        navigator.clipboard.writeText(postCaption.value);
+        showToast('Caption copied to clipboard!', 'success');
     });
     if (copyCaptionBtn) copyCaptionBtn.addEventListener('click', () => {
         postCaption.select();
@@ -792,122 +785,7 @@ function checkAuthQueryParam() {
     }
 }
 
-// ==================== AI Content Assistant (Chatbot) ====================
-async function initChat() {
-    if (!currentEventId) {
-        showToast('Please upload images first', 'error');
-        return;
-    }
-
-    startChatBtn.disabled = true;
-    startChatBtn.innerHTML = '<span class="spinner-sm"></span> Initializing...';
-    
-    try {
-        const response = await fetch('/api/chat/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                event_id: currentEventId,
-                custom_context: postCaption.value.trim() || null
-            })
-        });
-
-        if (!response.ok) throw new Error('Failed to start AI Assistant');
-
-        const data = await response.json();
-        chatSessionId = data.session_id;
-
-        // Transition UI
-        chatMessages.innerHTML = '';
-        chatInputArea.style.display = 'block';
-        finalCaptionSection.style.display = 'block';
-        
-        // Add initial messages
-        addMessage(data.initial_message, 'ai');
-        setTimeout(() => {
-            addMessage(data.first_draft, 'ai');
-            postCaption.value = data.first_draft;
-            postCaption.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 800);
-
-    } catch (error) {
-        console.error('Chat init error:', error);
-        showToast('Failed to start AI Assistant', 'error');
-        startChatBtn.disabled = false;
-        startChatBtn.textContent = 'Start Assistant';
-    }
-}
-
-async function sendChatMessage() {
-    const message = chatUserInput.value.trim();
-    if (!message || !chatSessionId) return;
-
-    // Clear input and add user message
-    chatUserInput.value = '';
-    addMessage(message, 'user');
-    showTyping();
-
-    try {
-        const response = await fetch('/api/chat/message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: chatSessionId,
-                message: message
-            })
-        });
-
-        if (!response.ok) throw new Error('AI failed to respond');
-
-        const data = await response.json();
-        hideTyping();
-        addMessage(data.response, 'ai');
-        
-        // Update the final caption area with the latest substantial text
-        // (Assuming the AI either gives a refinement or a full new draft)
-        if (data.response.length > 100 || data.response.includes('\n')) {
-            postCaption.value = data.response;
-        }
-
-    } catch (error) {
-        console.error('Chat message error:', error);
-        hideTyping();
-        addMessage("Sorry, I encountered an error. Please try again.", 'ai');
-    }
-}
-
-function addMessage(text, sender) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${sender}`;
-    
-    // Simple markdown-ish formatting for bolding
-    let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    formattedText = formattedText.replace(/\n/g, '<br>');
-    
-    msgDiv.innerHTML = formattedText;
-    chatMessages.appendChild(msgDiv);
-    
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function showTyping() {
-    const typing = document.createElement('div');
-    typing.id = 'typingIndicator';
-    typing.className = 'typing-indicator ai';
-    typing.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-    `;
-    chatMessages.appendChild(typing);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function hideTyping() {
-    const typing = document.getElementById('typingIndicator');
-    if (typing) typing.remove();
-}
+// ==================== AI Caption Generation ====================
 
 /**
  * Generates a one-shot AI caption using the legacy endpoint
