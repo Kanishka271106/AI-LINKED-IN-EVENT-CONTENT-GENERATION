@@ -9,13 +9,6 @@ ENV DEBIAN_FRONTEND noninteractive
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies for OpenCV (Headless)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    libgomp1 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
