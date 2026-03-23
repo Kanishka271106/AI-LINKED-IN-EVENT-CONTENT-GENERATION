@@ -20,7 +20,8 @@ AI-Driven-LinkedIn-Event-Content-Generation/
 │   ├── __init__.py               # Package initializer
 │   ├── database.py               # SQLAlchemy models & DB setup
 │   ├── image_processor.py        # AI quality assessment engine
-│   └── linkedin_api.py           # LinkedIn OAuth & posting API
+│   ├── linkedin_api.py           # LinkedIn OAuth & posting API
+│   └── chatbot_manager.py        # AI Content Assistant (Gemini)
 │
 ├── 📁 static/                     # Frontend assets
 │   ├── css/
@@ -69,8 +70,8 @@ AI-Driven-LinkedIn-Event-Content-Generation/
 ### 4️⃣ LinkedIn Integration
 - ✅ OAuth 2.0 secure authentication
 - ✅ Direct posting to personal profile
+- ✅ AI Content Assistant (Chatbot) for brainstorming
 - ✅ Support for multiple images (up to 9)
-- ✅ Custom caption support
 - ✅ Real-time auth status
 
 ### 5️⃣ Professional Web Interface
@@ -131,10 +132,10 @@ AI-Driven-LinkedIn-Event-Content-Generation/
    - Ranks by quality score
    - Selects top 10 images
    ↓
-4. User reviews selections:
-   - Sees quality metrics
-   - Can toggle selections
-   - Can add caption
+4. Use AI Content Assistant:
+   - Click "Start Assistant" for a brainstorming session
+   - AI analyzes photos & context to give a draft
+   - Chat with AI to refine, shorten, or change tone
    ↓
 5. One-click post to LinkedIn:
    - Authenticates via OAuth

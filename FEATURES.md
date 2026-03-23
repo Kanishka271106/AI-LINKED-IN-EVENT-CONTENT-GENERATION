@@ -144,8 +144,15 @@
 - Total images analyzed
 - Total successful posts
 - Real-time updates
+- AI Content Assistant (Chatbot) for captions
 
-### ✅ 8. Image Processing Pipeline
+### ✅ 8. AI Content Assistant (Chatbot)
+- **Interactive Brainstorming:** Instead of a static caption, chat with an AI assistant to craft the perfect message.
+- **Context Awareness:** The AI knows which photos you've selected and any special notes you provide.
+- **Iterative Refinement:** Ask the AI to "make it shorter," "use a more professional tone," or "add more emojis."
+- **Direct Integration:** Once you're happy with the chat's output, it's automatically ready for posting.
+
+### ✅ 9. Image Processing Pipeline
 
 #### Upload Phase
 1. File validation (format, size)
@@ -288,7 +295,6 @@ MAX_UPLOAD_SIZE=50         # MB limit
 - Auto-cropping suggestions
 
 ### Feature Additions
-- AI-generated captions
 - Hashtag suggestions
 - Post scheduling
 - Company page posting
