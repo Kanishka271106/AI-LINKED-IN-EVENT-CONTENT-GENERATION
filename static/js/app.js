@@ -137,6 +137,17 @@ function setupEventListeners() {
         generateCaptionBtn.addEventListener('click', generateCaption);
     }
 
+    // Enable Post button when user manually types in the caption box
+    if (postCaption) {
+        postCaption.addEventListener('input', () => {
+            if (postCaption.value.trim().length > 0 && selectedImageCount > 0) {
+                postToLinkedInBtn.disabled = false;
+            } else if (postCaption.value.trim().length === 0) {
+                postToLinkedInBtn.disabled = true;
+            }
+        });
+    }
+
     // Include Hashtags and Context settings
     if (includeHashtags) {
         includeHashtags.addEventListener('change', savePreferences);
@@ -801,13 +812,17 @@ async function generateCaption(silent = false) {
         generateCaptionBtn.innerHTML = '<span class="spinner-sm"></span> Generating...';
     }
 
+    // Get optional user-provided context from the dedicated input field
+    const contextInput = document.getElementById('captionContext');
+    const userContext = contextInput ? contextInput.value.trim() : null;
+
     try {
         const response = await fetch('/api/generate-caption', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 event_id: currentEventId,
-                custom_context: postCaption.value.trim() || null
+                custom_context: userContext || null
             })
         });
 
@@ -816,14 +831,16 @@ async function generateCaption(silent = false) {
         const data = await response.json();
         postCaption.value = data.caption;
         
-        // Show the preview section
-        finalCaptionSection.style.display = 'block';
+        // Scroll to caption so user sees it
         postCaption.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Enable post button now that there is content
+        postToLinkedInBtn.disabled = false;
 
         if (!silent) {
             showToast('AI caption generated!', 'success');
             generateCaptionBtn.disabled = false;
-            generateCaptionBtn.textContent = 'Auto-Generate Caption';
+            generateCaptionBtn.innerHTML = '✨ Generate AI Caption';
         }
 
         return data.caption;
