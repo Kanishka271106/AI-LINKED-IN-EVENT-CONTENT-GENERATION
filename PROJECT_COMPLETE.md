@@ -18,7 +18,7 @@ A **complete, production-ready web application** with:
 - ✅ Manual override controls
 - ✅ LinkedIn OAuth integration
 - ✅ Direct posting to LinkedIn
-- ✅ AI Content Assistant (Chatbot) for captions
+- ✅ AI-powered caption generation
 - ✅ Audit logging and statistics
 - ✅ Comprehensive documentation
 
@@ -66,8 +66,9 @@ A **complete, production-ready web application** with:
 1. Upload 10-15 event photos
 2. AI automatically picks the best 10
 3. Review and adjust selections
-4. Post to LinkedIn with one click
-5. **Save 2-3 hours per event!**
+4. Generate AI caption with one click
+5. Post to LinkedIn
+6. **Save 2-3 hours per event!**
 
 ### Technical Perspective (Detailed)
 
