@@ -144,6 +144,85 @@ body.dark-theme .btn-secondary:hover {
     background: var(--gray-300);
 }
 
+/* ==================== Buttons ==================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.95rem;
+    font-family: var(--font-body);
+}
+
+.btn-icon-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-large {
+    padding: 14px 28px;
+    font-size: 1rem;
+    border-radius: var(--radius-lg);
+}
+
+.btn-primary {
+    background: #0A66C2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(10, 102, 194, 0.2);
+}
+.btn-primary:hover {
+    background: #004182;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(10, 102, 194, 0.3);
+}
+
+.btn-secondary {
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+}
+.btn-secondary:hover {
+    background: var(--gray-50);
+    color: var(--gray-900);
+}
+
+.btn-linkedin {
+    background: #0A66C2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(10, 102, 194, 0.2);
+}
+.btn-linkedin:hover {
+    background: #004182;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(10, 102, 194, 0.3);
+}
+.btn-linkedin:disabled {
+    background: #A0C3E8;
+    color: #f1f1f1;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+.btn-linkedin svg {
+    width: 20px;
+    height: 20px;
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;

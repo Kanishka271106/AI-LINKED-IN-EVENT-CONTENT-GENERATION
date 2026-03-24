@@ -43,23 +43,24 @@ class CaptionGenerator:
         custom_hashtags = preferences.get("custom_hashtags", "") if preferences else ""
 
         base_prompt = f"""
-        Objective: Write a high-impact, detailed LinkedIn post.
+        Objective: Write a highly engaging, custom LinkedIn post.
         - Event Name: {event_name}
         - Photo count shared: {num_photos}
         """
         
         if custom_context:
             base_prompt += f"\n- User's Specific Details/Opinion: {custom_context}\n"
-            base_prompt += "- CRITICAL: Naturally weave these specific details throughout the post. Expand on them significantly. It should sound like the user's authentic, detailed voice."
 
         base_prompt += f"""
         
-        Guidelines:
-        1. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs for readability.
-        2. Content Expansion: Elaborate on the event ({event_name}), why the {num_photos} photos matter, the atmosphere, key learnings, and future outlook. Do not just state facts; provide insights and reflections.
-        3. Style: Professional yet highly engaging and conversational for LinkedIn.
-        4. No Intro/Outro: Do NOT include "Here is your caption" or any other commentary.
-        5. formatting: Use **bolding** for emphasis on key names or the event name, and consider using bullet points if appropriate for key takeaways.
+        CRITICAL Guidelines:
+        1. ANALYZE THE EVENT: Look at the Event Name and Context. Determine if this is a tech conference, a dance competition, a music concert, a sports game, a wedding, or an art show.
+        2. ADAPT THE TONE: Your tone, vocabulary, and insights MUST perfectly match the specific event type. DO NOT use generic business/tech jargon (e.g. "cutting-edge insights", "networking", "industry leaders") unless it is explicitly a tech/business event!
+        3. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs for readability.
+        4. Content Expansion: Elaborate on the event ({event_name}), why the photos matter, the atmosphere, and the memories. Be highly expressive and authentic.
+        5. Style: Engaging and authentic for LinkedIn, but perfectly tailored to the event's vibe (e.g. energetic for dance, appreciative for music, professional for tech).
+        6. No Intro/Outro: Do NOT include "Here is your caption".
+        7. Formatting: Use **bolding** for emphasis on key names, and use appropriate emojis for the specific event type.
         """
         
         if include_hashtags:
