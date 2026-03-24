@@ -38,6 +38,9 @@ const viewEvents = document.getElementById('viewEvents');
 const viewAnalytics = document.getElementById('viewAnalytics');
 const eventsHistoryTable = document.getElementById('eventsHistoryTable');
 const historySearch = document.getElementById('historySearch');
+const includeHashtags = document.getElementById('includeHashtags');
+const customHashtags = document.getElementById('customHashtags');
+const customHashtagsContainer = document.getElementById('customHashtagsContainer');
 
 const detailsModal = document.getElementById('detailsModal');
 const detailsGallery = document.getElementById('detailsGallery');

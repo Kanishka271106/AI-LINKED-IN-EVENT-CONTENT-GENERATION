@@ -34,7 +34,9 @@ class CaptionGenerator:
                 raise ValueError("Empty response from Gemini API")
             return response.text
         except Exception as e:
-            print(f"[ERROR] Caption generation failed: {e}")
+            print(f"[CRITICAL ERROR] Gemini API call failed: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return self._generate_mock_caption(event_name, num_photos, custom_context)
             
     def _create_prompt(self, event_name: str, num_photos: int, keywords: Optional[List[str]], custom_context: Optional[str], preferences: Optional[dict]) -> str:
@@ -80,23 +82,27 @@ class CaptionGenerator:
         return base_prompt.strip()
 
     def _generate_mock_caption(self, event_name: str, num_photos: int, custom_context: Optional[str] = None) -> str:
-        """Fallback mock caption if API is not configured"""
+        """Fallback mock caption that is flexible for all event types"""
         
-        # Log notice without emojis for terminal safety on some Windows systems
-        print("[NOTICE] Gemini API Key not found. Using pre-defined professional templates.")
+        # Log notice
+        print(f"[FALLBACK] Using generic flexible template for: {event_name}")
         
-        # Determine the focal point of the event
-        display_name = event_name
         opinion = ""
         if custom_context and len(custom_context.strip()) > 0:
             opinion = f" {custom_context}."
         
-        templates = [
-            f"It was an absolute privilege to participate in **{display_name}** this week! 🎉{opinion}\n\nFrom the moment the event kicked off, the energy was palpable. I had the incredible opportunity to connect with some of the brightest minds and most forward-thinking industry leaders in our space. 🚀 We explored innovative ideas, tackled complex challenges, and shared insights that I know will shape the future of our work.\n\nEvents like these are a powerful reminder of why I love what I do—it’s not just about the technology or the strategy; it’s about the fantastic community of professionals who drive progress forward every single day. 🤝\n\nI’m walking away with fresh perspectives, actionable takeaways, and a renewed sense of purpose. A huge thank you to the organizers, speakers, and everyone I had the pleasure of meeting. Let’s keep the conversation going! 💬\n\nSharing these {num_photos} photos to capture the vibrant energy and unforgettable moments of the day. 📸✨\n\n#Networking #EventHighlights #{display_name.replace(' ', '')} #ProfessionalGrowth #Community #Innovation",
-            
-            f"I am still buzzing from the incredible experience at **{display_name}** today! ✨{opinion}\n\nThe sessions were absolutely packed with value, delivering deep dives into the trends and strategies that are redefining our industry. 📈 I'm walking away with several key takeaways that I am eager to implement with my team immediately.\n\nIt’s always so inspiring to see so much raw talent, passion, and dedication gathered in one place. The conversations I had between sessions were just as valuable as the keynotes—proving once again that the power of connection is unmatched. 🤝💡\n\nI want to extend my gratitude to the hosts for putting together such a seamless and impactful event. The insights gained here will undoubtedly drive my work forward in the coming months. 🚀\n\nHere are {num_photos} highlights from the event that really stood out to me and captured the essence of the experience. 📸👇\n\n#Learning #Innovation #{display_name.replace(' ', '')} #Success #TechTrends #Leadership",
-            
-            f"What a phenomenal day at **{display_name}**! 🌟{opinion}\n\nBeyond the cutting-edge technical insights and deeply informative presentations, the true highlight for me was definitely the meaningful conversations and the wealth of new connections made. 🤝 Building relationships with peers who share the same drive for excellence is invaluable.\n\nWe discussed everything from emerging industry shifts to practical problem-solving strategies, and I couldn't be more energized. ⚡ It is environments like this that foster real innovation and collaborative breakthroughs.\n\nI am really looking forward to carrying this incredible momentum into my future projects and seeing where these new collaborations might lead. 🚀\n\nI put together a carousel of {num_photos} moments from the experience—swipe through to see some of my favorite highlights! 📸✨\n\n#Business #Connectivity #{display_name.replace(' ', '')} #CareerDevelopment #Networking #FutureOfWork"
-        ]
+        # Simple category detection
+        name_lower = event_name.lower()
+        context_lower = (custom_context or "").lower()
         
-        return random.choice(templates)
+        is_arts = any(k in name_lower or k in context_lower for k in ["dance", "music", "sing", "art", "performance", "concert", "stage"])
+        is_sports = any(k in name_lower or k in context_lower for k in ["sport", "game", "match", "fit", "gym", "run", "race"])
+        
+        if is_arts:
+            return f"What an incredible experience at **{event_name}**! 🎭✨{opinion}\n\nThe energy in the room was absolutely electric, and seeing such raw talent and passion on display was truly inspiring. It's moments like these that remind us how powerful creative expression can be in bringing people together.\n\nEvery performance was a testament to hard work and dedication. I feel so lucky to have been there to witness it all! 👏\n\nSharing these {num_photos} highlights that captured the beautiful vibration and soul of the event. 📸💖\n\n#Passion #ArtsAndCulture #Highlights #Memories"
+        
+        if is_sports:
+            return f"Still buzzing from the adrenaline at **{event_name}**! 🏆🔥{opinion}\n\nThe level of dedication and competitive spirit shown today was second to none. There's nothing quite like the feeling of being part of such a high-energy environment where everyone is pushing their limits.\n\nWhether it was the teamwork or the individual brilliance, today was a win for everyone involved. ⚽💪\n\nHere are {num_photos} shots capturing the sweat, the cheers, and the pure excitement of the day! 📸🚀\n\n#Sports #Dedication #GameDay #Success"
+            
+        # Default high-quality professional but GENERIC template (Not tech-only)
+        return f"Truly honored to have attended **{event_name}** recently! 🌟{opinion}\n\nIt was a day filled with meaningful interactions, fresh perspectives, and a shared sense of purpose. Being surrounded by such an engaged community always brings a new level of motivation to the work we do.\n\nWe explored so many interesting ideas and the atmosphere was perfect for genuine connection. A big thank you to everyone who made this event so special! 💼🤝\n\nCaptured {num_photos} moments that represent the best highlights of the experience. Swipe through to see them! 📸👇\n\n#Event #Networking #Growth #Community"
