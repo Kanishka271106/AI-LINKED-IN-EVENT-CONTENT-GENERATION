@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 import os
 
 from typing import List, Optional
@@ -13,8 +13,7 @@ class CaptionGenerator:
         
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.client = genai.Client(api_key=self.api_key)
                 self.is_configured = True
             except Exception as e:
                 print(f"Failed to configure Gemini API: {e}")
@@ -28,7 +27,10 @@ class CaptionGenerator:
             
         try:
             prompt = self._create_prompt(event_name, num_photos, keywords, custom_context, preferences)
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=prompt
+            )
             if not response or not response.text:
                 raise ValueError("Empty response from Gemini API")
             return response.text

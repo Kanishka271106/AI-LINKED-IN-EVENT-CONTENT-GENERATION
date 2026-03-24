@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 import os
 from typing import List, Dict, Optional
 import uuid
@@ -13,8 +13,7 @@ class ChatbotManager:
         
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.client = genai.Client(api_key=self.api_key)
                 self.is_configured = True
             except Exception as e:
                 print(f"Failed to configure Gemini API: {e}")
@@ -57,10 +56,17 @@ class ChatbotManager:
             # Append user message to history
             self.sessions[session_id].append({"role": "user", "parts": [user_message]})
             
-            # Generate response using history
-            # Note: Gemini Pro content type is list of dicts with 'role' and 'parts'
-            chat = self.model.start_chat(history=self.sessions[session_id][:-1])
-            response = chat.send_message(user_message)
+            # String build the chat history explicitly to avoid SDK type compatibility issues
+            prompt = ""
+            for msg in self.sessions[session_id]:
+                role_name = "User" if msg["role"] == "user" else "AI"
+                prompt += f"{role_name}: {msg['parts'][0]}\n\n"
+            prompt += "AI:"
+            
+            response = self.client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=prompt
+            )
             
             # Store AI response in history
             self.sessions[session_id].append({"role": "model", "parts": [response.text]})
