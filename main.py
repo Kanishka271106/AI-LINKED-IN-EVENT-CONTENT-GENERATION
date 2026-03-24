@@ -860,9 +860,9 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
             ).count()
     
     return {
-        "total_events": total_events,
-        "total_images_processed": total_images,
-        "total_posts": total_posts,
+        "total_events": 0, # Hide global counts to prevent confusion
+        "total_images_processed": 0,
+        "total_posts": 0,
         "user_posts": user_posts,
         "user_images": user_images,
         "authenticated": True,
@@ -871,13 +871,20 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/analytics")
 async def get_analytics(request: Request, db: Session = Depends(get_db)):
-    """Get aggregated analytics data for the authenticated user"""
-    from sqlalchemy import func
+    """Get summarized analytics for the authenticated session user"""
     email = request.session.get("user_email")
     if not email:
-        return {"events_timeline": [], "posts_timeline": [], "quality_distribution": {}}
-
-    # 1. Events over time (last 30 days) for this user
+        return {
+            "events_timeline": [],
+            "posts_timeline": [],
+            "quality_distribution": {
+                "Low (<50%)": 0,
+                "Medium (50-80%)": 0,
+                "High (>80%)": 0
+            }
+        }
+    
+    # 1. Events over time for this user
     events_by_date = db.query(
         func.date(Event.created_at).label('date'),
         func.count(Event.id).label('count')
@@ -889,11 +896,11 @@ async def get_analytics(request: Request, db: Session = Depends(get_db)):
         func.count(Post.id).label('count')
     ).join(Event).filter(Event.user_email == email, Post.status == "success").group_by(func.date(Post.posted_at)).order_by(func.date(Post.posted_at)).limit(30).all()
     
-    # 3. Quality distribution
+    # 3. Quality distribution for this user
     quality_ranges = {
-        "Low (<50%)": db.query(Image).filter(Image.quality_score < 0.5).count(),
-        "Medium (50-80%)": db.query(Image).filter(Image.quality_score >= 0.5, Image.quality_score < 0.8).count(),
-        "High (>80%)": db.query(Image).filter(Image.quality_score >= 0.8).count()
+        "Low (<50%)": db.query(Image).join(Event).filter(Event.user_email == email, Image.quality_score < 0.5).count(),
+        "Medium (50-80%)": db.query(Image).join(Event).filter(Event.user_email == email, Image.quality_score >= 0.5, Image.quality_score < 0.8).count(),
+        "High (>80%)": db.query(Image).join(Event).filter(Event.user_email == email, Image.quality_score >= 0.8).count()
     }
     
     return {
@@ -901,6 +908,7 @@ async def get_analytics(request: Request, db: Session = Depends(get_db)):
         "posts_timeline": [{"date": str(r.date), "count": r.count} for r in posts_by_date],
         "quality_distribution": quality_ranges
     }
+
 
 @app.get("/api/activity")
 async def get_recent_activity(request: Request, db: Session = Depends(get_db)):
