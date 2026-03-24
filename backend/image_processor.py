@@ -211,78 +211,75 @@ class ImageProcessor:
     
     def enhance_image(self, image_path: str, output_path: str = None, fast: bool = False) -> str:
         """
-        Apply professional enhancements to image:
-        - Noise reduction (fast mode: skipped or subtle)
-        - White balance
-        - Lighting balance (CLAHE)
-        - Smart Sharpening
+        Apply professional 'Premium' enhancements:
+        - Robust loading (PIL fallback)
+        - Optimized Denoising (Non-local means)
+        - Vibrant Color Balancing
+        - CLAHE Lighting Correction
+        - Smart Multi-step Sharpening
         """
         if output_path is None:
             base, ext = os.path.splitext(image_path)
-            # Avoid triple extensions if already enhanced
             if "_enhanced" in base:
                 output_path = image_path
             else:
                 output_path = f"{base}_enhanced{ext}"
         
-        img_cv = cv2.imread(image_path)
-        if img_cv is None:
-            return image_path
-            
-        # 1. Noise Reduction (Subtle)
-        # fastNlMeansDenoisingColored is very slow, skip it in fast mode
-        if not fast:
-            img_cv = cv2.fastNlMeansDenoisingColored(img_cv, None, 3, 3, 7, 21)
-        
-        # 2. Simple White Balance (Gray World)
-        result = img_cv.astype(np.float32)
-        avg_b = np.mean(result[:, :, 0])
-        avg_g = np.mean(result[:, :, 1])
-        avg_r = np.mean(result[:, :, 2])
-        avg_gray = (avg_b + avg_g + avg_r) / 3
-        # Avoid division by zero
-        avg_b = max(avg_b, 0.001)
-        avg_g = max(avg_g, 0.001)
-        avg_r = max(avg_r, 0.001)
-        
-        # Blend factor: 0.5 (50% original, 50% gray world) for natural tone
-        target_b = (avg_gray / avg_b) * 0.5 + 0.5
-        target_g = (avg_gray / avg_g) * 0.5 + 0.5
-        target_r = (avg_gray / avg_r) * 0.5 + 0.5
+        try:
+            # Robust Loading: PIL handles Windows file locks and formats better than cv2.imread
+            with Image.open(image_path) as img_pil:
+                img_cv = cv2.cvtColor(np.array(img_pil.convert('RGB')), cv2.COLOR_RGB2BGR)
+        except Exception as e:
+            print(f"   [ERROR] Enhancement Load Failed for {image_path}: {e}")
+            raise Exception(f"Could not open image for enhancement: {e}")
 
-        result[:, :, 0] *= target_b
-        result[:, :, 1] *= target_g
-        result[:, :, 2] *= target_r
+        # 1. Premium Noise Reduction (Optimized for quality)
+        # We use a moderate strength that removes grain without destroying texture
+        h_luma = 3 if fast else 5
+        img_cv = cv2.fastNlMeansDenoisingColored(img_cv, None, h_luma, h_luma, 7, 21)
+        
+        # 2. Vibrant Color Balance (Beyond simple Gray World)
+        # We normalize each channel but keep a slight warm/natural bias
+        result = img_cv.astype(np.float32)
+        avg_b, avg_g, avg_r = np.mean(result[:, :, 0]), np.mean(result[:, :, 1]), np.mean(result[:, :, 2])
+        avg_total = (avg_b + avg_g + avg_r) / 3
+        
+        # Avoid graying out the image: Use a 40% correction factor for "Vibrancy"
+        if avg_total > 5:
+            result[:, :, 0] *= (avg_total / max(avg_b, 1)) * 0.4 + 0.6
+            result[:, :, 1] *= (avg_total / max(avg_g, 1)) * 0.4 + 0.6
+            result[:, :, 2] *= (avg_total / max(avg_r, 1)) * 0.4 + 0.6
+            
         img_cv = np.clip(result, 0, 255).astype(np.uint8)
         
-        # 3. Lighting Balance (CLAHE for local contrast/detail)
+        # 3. Lighting Balance (CLAHE for depth)
         lab = cv2.cvtColor(img_cv, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.6, tileGridSize=(8, 8))
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         cl = clahe.apply(l)
-        limg = cv2.merge((cl, a, b))
-        img_cv = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+        img_cv = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
         
-        # Convert to PIL for final tweaks and saving
+        # 4. Final Polish with PIL
         img_pil = Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
         
-        # 4. Smart Multi-step Sharpen
+        # Smart Sharpening
         sharpness_level = self._calculate_sharpness(img_cv)
         enhancer_sharpness = ImageEnhance.Sharpness(img_pil)
-        if sharpness_level < 150:
-            img_pil = enhancer_sharpness.enhance(1.9) # Higher sharpening for softer images
-        else:
-            img_pil = enhancer_sharpness.enhance(1.6) # Moderate sharpening for sharp images
+        # Apply stronger sharpening to softer images
+        factor = 1.8 if sharpness_level < 150 else 1.4
+        img_pil = enhancer_sharpness.enhance(factor)
         
-        # Vitality boost (Saturation and Contrast)
-        enhancer_color = ImageEnhance.Color(img_pil)
-        img_pil = enhancer_color.enhance(1.18) # Slightly more vibrant
-
-        # Contrast boost for "pro" look
-        enhancer_contrast = ImageEnhance.Contrast(img_pil)
-        img_pil = enhancer_contrast.enhance(1.15) 
+        # Color Vitality (Saturation) - 15% boost for professional pop
+        img_pil = ImageEnhance.Color(img_pil).enhance(1.15)
         
+        # Contrast - 10% boost for depth
+        img_pil = ImageEnhance.Contrast(img_pil).enhance(1.1)
+        
+        # Save with high quality
         img_pil.save(output_path, quality=95, subsampling=0)
+        
+        # Explicit memory cleanup
+        del img_cv
         return output_path
     
     def detect_faces(self, image_path: str) -> int:
