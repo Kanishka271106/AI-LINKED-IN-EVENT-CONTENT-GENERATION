@@ -54,13 +54,17 @@ class CaptionGenerator:
         base_prompt += f"""
         
         CRITICAL Guidelines:
-        1. ANALYZE THE EVENT: Look at the Event Name and Context. Determine if this is a tech conference, a dance competition, a music concert, a sports game, a wedding, or an art show.
-        2. ADAPT THE TONE: Your tone, vocabulary, and insights MUST perfectly match the specific event type. DO NOT use generic business/tech jargon (e.g. "cutting-edge insights", "networking", "industry leaders") unless it is explicitly a tech/business event!
+        1. ANALYZE THE EVENT CATEGORY: Examine the Event Name ({event_name}) and the User's Opinion.
+           - If it's a DANCE event: Focus on the rhythm, the performance, the energy, the choreo, the stage, and the artistic expression.
+           - If it's a MUSIC / SINGING event: Focus on the vocals, the melody, the vibration, the connection with the audience, and the soul.
+           - If it's a SPORTS / FITNESS event: Focus on the sweat, the dedication, the movement, the adrenaline, and the physical achievement.
+           - ONLY if it's a TECH / CORPORATE event: Use professional networking or industry language.
+        2. ADAPT THE TONE: Your vocabulary and insights MUST perfectly match the specific event type. DO NOT use generic business/tech jargon (e.g. "cutting-edge insights", "networking", "industry leaders") unless it is explicitly an industry/tech event! No "deep dives" or "key takeaways" for a dance performance!
         3. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs for readability.
-        4. Content Expansion: Elaborate on the event ({event_name}), why the photos matter, the atmosphere, and the memories. Be highly expressive and authentic.
-        5. Style: Engaging and authentic for LinkedIn, but perfectly tailored to the event's vibe (e.g. energetic for dance, appreciative for music, professional for tech).
+        4. Content Expansion: Elaborate on the event, why the {num_photos} photos matter, the atmosphere, and the memories. Be highly expressive and authentic.
+        5. Style: Engaging and authentic for LinkedIn, but perfectly tailored to the event's vibe (e.g. energetic and passionate for dance, appreciative for music, professional for tech).
         6. No Intro/Outro: Do NOT include "Here is your caption".
-        7. Formatting: Use **bolding** for emphasis on key names, and use appropriate emojis for the specific event type.
+        7. Formatting: Use **bolding** for emphasis on the event name, and use appropriate emojis (e.g. 💃🕺 for dance, 🎤🎵 for music, ⚽🏋️ for sports, 💻🚀 for tech).
         """
         
         if include_hashtags:
