@@ -546,6 +546,46 @@ body.dark-theme .btn-secondary:hover {
     transform: scale(1.01);
 }
 
+.upload-area.disabled {
+    border-color: var(--gray-200);
+    background: var(--gray-50);
+    cursor: not-allowed;
+    opacity: 0.7;
+    pointer-events: none;
+    position: relative;
+}
+
+.upload-area.disabled::after {
+    content: "Connect LinkedIn to Start";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--gray-800);
+    color: white;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.875rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.upload-area.disabled:hover::after {
+    opacity: 1;
+}
+
+.upload-area.disabled .upload-icon,
+.upload-area.disabled .upload-title,
+.upload-area.disabled .upload-description,
+.upload-area.disabled .btn-primary,
+.upload-area.disabled .upload-hint {
+    filter: grayscale(1);
+    opacity: 0.5;
+}
+
 .upload-icon {
     width: 64px;
     height: 64px;

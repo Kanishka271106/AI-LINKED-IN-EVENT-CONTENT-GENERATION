@@ -92,8 +92,8 @@ async function initializeApp() {
         loadStats().catch(e => console.error('Stats load failed:', e)),
         loadRecentActivity().catch(e => console.error('Activity load failed:', e))
     ]).then(() => {
-        console.log('Core data loaded.');
         try { checkAuthQueryParam(); } catch (e) { console.error('Auth query check failed:', e); }
+        updateUploadUI();
     });
 
     console.log('Dashboard base initialization complete.');
@@ -280,6 +280,11 @@ function handleFileSelect(e) {
 }
 
 async function processFiles(files) {
+    if (!isAuthenticated) {
+        showToast('Please connect to LinkedIn first!', 'warning');
+        return;
+    }
+
     if (!files || files.length === 0) {
         showToast('Please select at least one image', 'error');
         return;
@@ -674,6 +679,7 @@ async function checkAuthStatus() {
         }
 
         updateSelectedCount();
+        updateUploadUI();
 
     } catch (error) {
         console.error('Auth check error:', error);
@@ -1400,5 +1406,17 @@ async function saveEdits() {
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
+    }
+}
+
+function updateUploadUI() {
+    if (!uploadArea || !selectFilesBtn) return;
+
+    if (isAuthenticated) {
+        uploadArea.classList.remove('disabled');
+        selectFilesBtn.disabled = false;
+    } else {
+        uploadArea.classList.add('disabled');
+        selectFilesBtn.disabled = true;
     }
 }
