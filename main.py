@@ -47,6 +47,9 @@ load_dotenv()
 # Initialize FastAPI app
 app = FastAPI(title="Curator", version="1.0.0")
 
+# Ensure the uploads directory exists to prevent FastAPI StaticFiles from crashing on boot
+os.makedirs("uploads", exist_ok=True)
+
 # Mount static files (CSS, JS, Images)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
