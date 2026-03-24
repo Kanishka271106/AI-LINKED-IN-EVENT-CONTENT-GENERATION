@@ -1,16 +1,12 @@
-import os
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-import urllib.parse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from typing import List, Optional
-import os
-import shutil
-import uuid
+from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Session Secret Key - Multi-user isolation
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "super-secret-curator-key-change-me")
 
 from pydantic import BaseModel
 from backend.database import init_db, get_db, Event, Image, Post, LinkedInToken
@@ -29,6 +25,9 @@ load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(title="Curator", version="1.0.0")
+
+# Add Session Middleware for Multi-User Isolation
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 class CropData(BaseModel):
     x: int
@@ -127,22 +126,24 @@ async def home(request: Request):
 
 @app.post("/api/upload")
 async def upload_images(
+    request: Request,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
-    """Upload and process event images"""
+    """Upload and process event images for the current user session"""
     
+    # Identify user from session
+    user_email = request.session.get("user_email")
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Please connect to LinkedIn first to start your session.")
+
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
     
     if len(files) > 20:
         raise HTTPException(status_code=400, detail="Maximum 20 files allowed")
     
-    # Get last authenticated user for association
-    last_token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
-    user_email = last_token.user_email if last_token else None
-
-    # Create new event
+    # Create new event associated with this user
     event = Event(
         name=f"Event {datetime.now().strftime('%Y%m%d_%H%M%S')}",
         total_uploaded=len(files),
@@ -262,12 +263,15 @@ async def upload_images(
 
 
 @app.get("/api/events/{event_id}/images")
-async def get_event_images(event_id: int, db: Session = Depends(get_db)):
-    """Get all images for an event"""
-    
-    event = db.query(Event).filter(Event.id == event_id).first()
+async def get_event_images(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Get all images for an event if owned by the current session user"""
+    email = request.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    event = db.query(Event).filter(Event.id == event_id, Event.user_email == email).first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Event not found or access denied")
     
     images = db.query(Image).filter(Image.event_id == event_id).all()
     
@@ -295,12 +299,19 @@ async def get_event_images(event_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/images/{image_id}/toggle-select")
-async def toggle_image_selection(image_id: int, db: Session = Depends(get_db)):
-    """Toggle image selection status"""
+async def toggle_image_selection(image_id: int, request: Request, db: Session = Depends(get_db)):
+    """Toggle image selection status (Scoped to User)"""
+    email = request.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    image = db.query(Image).join(Event).filter(
+        Image.id == image_id, 
+        Event.user_email == email
+    ).first()
     
-    image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=404, detail="Image not found or access denied")
     
     image.is_selected = not image.is_selected
     
@@ -352,12 +363,19 @@ async def enhance_image_endpoint(image_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/images/{image_id}/edit")
-async def edit_image_endpoint(image_id: int, request: EditRequest, db: Session = Depends(get_db)):
-    """Apply manual edits to an image"""
+async def edit_image_endpoint(image_id: int, req: Request, request: EditRequest, db: Session = Depends(get_db)):
+    """Apply manual edits to an image (Scoped to session user)"""
+    email = req.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    image = db.query(Image).join(Event).filter(
+        Image.id == image_id,
+        Event.user_email == email
+    ).first()
     
-    image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=404, detail="Image not found or access denied")
     
     try:
         # Load image
@@ -470,8 +488,8 @@ async def linkedin_auth():
 
 
 @app.get("/linkedin/callback")
-async def linkedin_callback(code: str = None, error: str = None, error_description: str = None, state: Optional[str] = None, db: Session = Depends(get_db)):
-    """Handle LinkedIn OAuth callback"""
+async def linkedin_callback(request: Request, code: str = None, error: str = None, error_description: str = None, state: Optional[str] = None, db: Session = Depends(get_db)):
+    """Handle LinkedIn OAuth callback and establish session"""
     
     if error:
         print(f"LinkedIn Auth Error: {error} - {error_description}")
@@ -480,9 +498,8 @@ async def linkedin_callback(code: str = None, error: str = None, error_descripti
         return RedirectResponse(url=f"/?auth=error&reason={reason_enc}&desc={desc_enc}")
 
     if not code:
-        print(f"   [ERROR] LinkedIn Callback hit WITHOUT 'code' parameter. Redirect URI might be misconfigured.")
-        print(f"           Full Request URL: {request.url}")
-        return RedirectResponse(url="/?auth=error&reason=no_code&detail=LinkedIn_did_not_provide_an_authorization_code_check_Redirect_URI")
+        print(f"   [ERROR] LinkedIn Callback hit WITHOUT 'code' parameter.")
+        return RedirectResponse(url="/?auth=error&reason=no_code")
     
     try:
         # Exchange code for token
@@ -490,10 +507,14 @@ async def linkedin_callback(code: str = None, error: str = None, error_descripti
         
         # Get user info
         user_info = linkedin_api.get_user_info(token_data["access_token"])
+        email = user_info["email"]
+        
+        # Store user in session for multi-user isolation
+        request.session["user_email"] = email
         
         # Store token in database
         existing_token = db.query(LinkedInToken).filter(
-            LinkedInToken.user_email == user_info["email"]
+            LinkedInToken.user_email == email
         ).first()
         
         if existing_token:
@@ -501,48 +522,48 @@ async def linkedin_callback(code: str = None, error: str = None, error_descripti
             existing_token.expires_at = token_data["expires_at"]
         else:
             new_token = LinkedInToken(
-                user_email=user_info["email"],
+                user_email=email,
                 access_token=token_data["access_token"],
                 expires_at=token_data["expires_at"]
             )
             db.add(new_token)
         
         db.commit()
-        
-        # Redirect back to main app with success message
         return RedirectResponse(url="/?auth=success")
     
     except Exception as e:
-        import traceback
-        error_msg = str(e)
-        print(f"LinkedIn auth error: {error_msg}")
-        traceback.print_exc()
-        msg_enc = urllib.parse.quote(error_msg)
-        return RedirectResponse(url=f"/?auth=error&reason=exchange_failed&detail={msg_enc}")
+        print(f"LinkedIn auth error: {e}")
+        return RedirectResponse(url=f"/?auth=error&reason=exchange_failed")
 
-
-@app.get("/api/test-error")
-async def test_error():
-    """Test endpoint to verify error toast"""
-    return RedirectResponse(url="/?auth=error&reason=test_reason&detail=This is a test detailed error message")
 
 @app.get("/api/auth/status")
-async def auth_status(db: Session = Depends(get_db)):
-    """Check if user is authenticated with LinkedIn"""
+async def auth_status(request: Request, db: Session = Depends(get_db)):
+    """Check if the current session user is authenticated with LinkedIn"""
     
-    token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
+    email = request.session.get("user_email")
+    if not email:
+        return {"authenticated": False, "reason": "no_session"}
+
+    token = db.query(LinkedInToken).filter(LinkedInToken.user_email == email).first()
     
     if not token:
-        return {"authenticated": False}
+        return {"authenticated": False, "user_email": email}
     
     # Check if token is still valid
     is_valid = linkedin_api.validate_token(token.access_token)
     
     return {
         "authenticated": is_valid,
-        "user_email": token.user_email if is_valid else None,
+        "user_email": email,
         "expires_at": token.expires_at.isoformat() if is_valid else None
     }
+
+
+@app.post("/api/auth/logout")
+async def logout(request: Request):
+    """Clear user session"""
+    request.session.clear()
+    return {"success": True}
 
 
 # ============= Caption Generation & Preferences =============
@@ -559,10 +580,19 @@ class CaptionRequest(BaseModel):
     post_vibe: Optional[str] = "Professional"
 
 @app.get("/api/preferences")
-async def get_preferences(db: Session = Depends(get_db)):
-    """Get user caption preferences"""
+async def get_preferences(request: Request, db: Session = Depends(get_db)):
+    """Get caption preferences for the current session user"""
     from backend.database import UserPreference
-    prefs = db.query(UserPreference).order_by(UserPreference.updated_at.desc()).first()
+    email = request.session.get("user_email")
+    if not email:
+        return {
+            "include_hashtags": True,
+            "custom_hashtags": "",
+            "event_type": "General",
+            "post_vibe": "Professional"
+        }
+
+    prefs = db.query(UserPreference).filter(UserPreference.user_email == email).first()
     
     if not prefs:
         # Return default preferences
@@ -581,38 +611,45 @@ async def get_preferences(db: Session = Depends(get_db)):
     }
 
 @app.post("/api/preferences")
-async def update_preferences(request: PreferenceRequest, db: Session = Depends(get_db)):
-    """Update user caption preferences"""
+async def update_preferences(request: Request, pref_req: PreferenceRequest, db: Session = Depends(get_db)):
+    """Update caption preferences for the authenticated user"""
     from backend.database import UserPreference
-    
-    # For MVP, we use a single global preference record (or per user if we had auth)
-    prefs = db.query(UserPreference).first()
+    email = request.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    prefs = db.query(UserPreference).filter(UserPreference.user_email == email).first()
     
     if not prefs:
         prefs = UserPreference(
-            include_hashtags=request.include_hashtags,
-            custom_hashtags=request.custom_hashtags
+            user_email=email,
+            include_hashtags=pref_req.include_hashtags,
+            custom_hashtags=pref_req.custom_hashtags
         )
         db.add(prefs)
     else:
-        prefs.include_hashtags = request.include_hashtags
-        prefs.custom_hashtags = request.custom_hashtags
+        prefs.include_hashtags = pref_req.include_hashtags
+        prefs.custom_hashtags = pref_req.custom_hashtags
     
     db.commit()
     return {"success": True}
 
 @app.post("/api/generate-caption")
-async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depends(get_db)):
-    """Generate AI caption for the event"""
+async def generate_caption_endpoint(request: Request, capt_req: CaptionRequest, db: Session = Depends(get_db)):
+    """Generate AI caption for the event (Scoped to User)"""
     from backend.database import UserPreference
-    
-    event = db.query(Event).filter(Event.id == request.event_id).first()
+    email = request.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    # Verify event ownership
+    event = db.query(Event).filter(Event.id == capt_req.event_id, Event.user_email == email).first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Event not found or access denied")
     
-    # Get selected images count
+    # Get selected images count for this user's event
     selected_count = db.query(Image).filter(
-        Image.event_id == request.event_id, 
+        Image.event_id == capt_req.event_id, 
         Image.is_selected == True
     ).count()
     
@@ -620,8 +657,8 @@ async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depen
         # Fallback to total uploaded if none selected yet
         selected_count = event.total_uploaded
     
-    # Fetch preferences
-    prefs_record = db.query(UserPreference).order_by(UserPreference.updated_at.desc()).first()
+    # Fetch preferences for this user
+    prefs_record = db.query(UserPreference).filter(UserPreference.user_email == email).first()
     preferences = {
         "include_hashtags": prefs_record.include_hashtags if prefs_record else True,
         "custom_hashtags": prefs_record.custom_hashtags if prefs_record else "",
@@ -648,16 +685,21 @@ class PostDBRequest(BaseModel):
 @app.post("/api/post/linkedin/{event_id}")
 async def post_to_linkedin(
     event_id: int,
-    request: PostDBRequest,
+    request: Request,
+    post_req: PostDBRequest,
     db: Session = Depends(get_db)
 ):
-    caption = request.caption
-    """Post selected images to LinkedIn"""
+    """Post selected images to LinkedIn for the authenticated session user"""
+    caption = post_req.caption
+    email = request.session.get("user_email")
     
-    # Get event and selected images
-    event = db.query(Event).filter(Event.id == event_id).first()
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired. Please reconnect to LinkedIn.")
+
+    # Get event and verify ownership
+    event = db.query(Event).filter(Event.id == event_id, Event.user_email == email).first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        raise HTTPException(status_code=404, detail="Event not found or access denied")
     
     selected_images = db.query(Image).filter(
         Image.event_id == event_id,
@@ -667,8 +709,8 @@ async def post_to_linkedin(
     if not selected_images:
         raise HTTPException(status_code=400, detail="No images selected")
     
-    # Get LinkedIn token
-    token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
+    # Get LinkedIn token for THIS user
+    token = db.query(LinkedInToken).filter(LinkedInToken.user_email == email).first()
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated with LinkedIn")
     
@@ -731,10 +773,13 @@ async def post_to_linkedin(
 # ============= Audit Logs =============
 
 @app.get("/api/logs")
-async def get_logs(db: Session = Depends(get_db)):
-    """Get audit logs"""
-    
-    posts = db.query(Post).order_by(Post.posted_at.desc()).limit(50).all()
+async def get_logs(request: Request, db: Session = Depends(get_db)):
+    """Get audit logs for the current user session"""
+    email = request.session.get("user_email")
+    if not email:
+        return {"logs": []}
+
+    posts = db.query(Post).join(Event).filter(Event.user_email == email).order_by(Post.posted_at.desc()).limit(50).all()
     
     return {
         "logs": [
@@ -753,17 +798,14 @@ async def get_logs(db: Session = Depends(get_db)):
 
 
 @app.get("/api/stats")
-async def get_stats(db: Session = Depends(get_db)):
-    """Get application statistics with user-specific data"""
-    
-    # Global stats
-    total_events = db.query(Event).count()
-    total_images = db.query(Image).count()
-    total_posts = db.query(Post).filter(Post.status == "success").count()
-    
-    # User-specific stats (based on last authenticated LinkedIn user)
-    last_token = db.query(LinkedInToken).order_by(LinkedInToken.created_at.desc()).first()
-    user_email = last_token.user_email if last_token else None
+async def get_stats(request: Request, db: Session = Depends(get_db)):
+    """Get application statistics for the authenticated session user"""
+    email = request.session.get("user_email")
+    if not email:
+        return {"user_posts": 0, "user_images": 0, "authenticated": False, "user_email": None}
+
+    # User-specific stats
+    user_email = email
     
     user_posts = 0
     user_images = 0
@@ -795,21 +837,24 @@ async def get_stats(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/analytics")
-async def get_analytics(db: Session = Depends(get_db)):
-    """Get aggregated analytics data for charts"""
+async def get_analytics(request: Request, db: Session = Depends(get_db)):
+    """Get aggregated analytics data for the authenticated user"""
     from sqlalchemy import func
-    
-    # 1. Events over time (last 30 days)
+    email = request.session.get("user_email")
+    if not email:
+        return {"events_timeline": [], "posts_timeline": [], "quality_distribution": {}}
+
+    # 1. Events over time (last 30 days) for this user
     events_by_date = db.query(
         func.date(Event.created_at).label('date'),
         func.count(Event.id).label('count')
-    ).group_by(func.date(Event.created_at)).order_by(func.date(Event.created_at)).limit(30).all()
+    ).filter(Event.user_email == email).group_by(func.date(Event.created_at)).order_by(func.date(Event.created_at)).limit(30).all()
     
-    # 2. Posts over time
+    # 2. Posts over time for this user
     posts_by_date = db.query(
         func.date(Post.posted_at).label('date'),
         func.count(Post.id).label('count')
-    ).filter(Post.status == "success").group_by(func.date(Post.posted_at)).order_by(func.date(Post.posted_at)).limit(30).all()
+    ).join(Event).filter(Event.user_email == email, Post.status == "success").group_by(func.date(Post.posted_at)).order_by(func.date(Post.posted_at)).limit(30).all()
     
     # 3. Quality distribution
     quality_ranges = {
@@ -825,12 +870,16 @@ async def get_analytics(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/activity")
-async def get_recent_activity(db: Session = Depends(get_db)):
-    """Get recent activities for dashboard widget"""
+async def get_recent_activity(request: Request, db: Session = Depends(get_db)):
+    """Get recent activities for dashboard widget (Scoped to User)"""
+    email = request.session.get("user_email")
+    if not email:
+        return {"activities": []}
+
     activities = []
     
-    # Get last 5 successful posts
-    posts = db.query(Post).filter(Post.status == "success").order_by(Post.posted_at.desc()).limit(5).all()
+    # Get last 5 successful posts for this user
+    posts = db.query(Post).join(Event).filter(Event.user_email == email, Post.status == "success").order_by(Post.posted_at.desc()).limit(5).all()
     for post in posts:
         event = db.query(Event).filter(Event.id == post.event_id).first()
         activities.append({
@@ -843,7 +892,7 @@ async def get_recent_activity(db: Session = Depends(get_db)):
         })
     
     # Get last 5 events
-    events = db.query(Event).order_by(Event.created_at.desc()).limit(5).all()
+    events = db.query(Event).filter(Event.user_email == email).order_by(Event.created_at.desc()).limit(5).all()
     for event in events:
         activities.append({
             "type": "event",
@@ -860,9 +909,13 @@ async def get_recent_activity(db: Session = Depends(get_db)):
     return {"activities": activities[:5]}
 
 @app.get("/api/events")
-async def get_events_history(db: Session = Depends(get_db)):
-    """Get all events with their summary details"""
-    events = db.query(Event).order_by(Event.created_at.desc()).all()
+async def get_events_history(request: Request, db: Session = Depends(get_db)):
+    """Get all events with their summary details for current user"""
+    email = request.session.get("user_email")
+    if not email:
+        return []
+        
+    events = db.query(Event).filter(Event.user_email == email).order_by(Event.created_at.desc()).all()
     
     results = []
     for event in events:
