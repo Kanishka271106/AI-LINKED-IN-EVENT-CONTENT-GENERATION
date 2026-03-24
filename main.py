@@ -1,14 +1,4 @@
-import sys
-import subprocess
 import os
-
-try:
-    print("================ RUNTIME DEPENDENCY FIX ================", flush=True)
-    subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "google-generativeai"], stdout=sys.stdout)
-    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", "google-genai", "google-auth", "pydantic>=2.0"], stdout=sys.stdout)
-except Exception as e:
-    pass
-
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
