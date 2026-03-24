@@ -4,16 +4,10 @@ import os
 
 try:
     print("================ RUNTIME DEPENDENCY FIX ================", flush=True)
-    # Physically force installation of google-genai directly inside the runtime container
     subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "google-generativeai"], stdout=sys.stdout)
     subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", "google-genai", "google-auth", "pydantic>=2.0"], stdout=sys.stdout)
-    
-    # Print the installed packages directly to the Railway Deploy logs so we can see what's happening
-    output = subprocess.check_output([sys.executable, "-m", "pip", "list"])
-    print(output.decode("utf-8"), flush=True)
-    print("========================================================", flush=True)
 except Exception as e:
-    print(f"Runtime fix failed: {e}", flush=True)
+    pass
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
@@ -33,7 +27,6 @@ from backend.database import init_db, get_db, Event, Image, Post, LinkedInToken
 from backend.image_processor import ImageProcessor
 from backend.linkedin_api import LinkedInAPI
 from backend.caption_generator import CaptionGenerator
-from backend.chatbot_manager import ChatbotManager
 from PIL import Image as PILImage, ImageEnhance
 import io
 import base64
@@ -46,13 +39,6 @@ load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(title="Curator", version="1.0.0")
-
-# Ensure the uploads directory exists to prevent FastAPI StaticFiles from crashing on boot
-os.makedirs("uploads", exist_ok=True)
-
-# Mount static files (CSS, JS, Images)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 class CropData(BaseModel):
     x: int
@@ -96,7 +82,6 @@ image_processor = ImageProcessor(
 )
 linkedin_api = LinkedInAPI()
 caption_generator = CaptionGenerator()
-chatbot_manager = ChatbotManager()
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -578,14 +563,6 @@ class CaptionRequest(BaseModel):
     keywords: Optional[List[str]] = None
     custom_context: Optional[str] = None
 
-class ChatInitRequest(BaseModel):
-    event_id: int
-    custom_context: Optional[str] = None
-
-class ChatMessageRequest(BaseModel):
-    session_id: str
-    message: str
-
 @app.get("/api/preferences")
 async def get_preferences(db: Session = Depends(get_db)):
     """Get user caption preferences"""
@@ -627,7 +604,7 @@ async def update_preferences(request: PreferenceRequest, db: Session = Depends(g
 
 @app.post("/api/generate-caption")
 async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depends(get_db)):
-    """Generate AI caption for the event (Legacy one-shot)"""
+    """Generate AI caption for the event"""
     from backend.database import UserPreference
     
     event = db.query(Event).filter(Event.id == request.event_id).first()
@@ -660,41 +637,6 @@ async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depen
     )
     
     return {"caption": caption}
-
-@app.post("/api/chat/init")
-async def init_chat(request: ChatInitRequest, db: Session = Depends(get_db)):
-    """Initialize a chat session with event context"""
-    event = db.query(Event).filter(Event.id == request.event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    
-    # Get selected images count
-    selected_pics = db.query(Image).filter(
-        Image.event_id == request.event_id, 
-        Image.is_selected == True
-    ).count()
-    
-    context = f"Event Name: {event.name}\nPhotos Selected: {selected_pics}"
-    if request.custom_context:
-        context += f"\nUser Notes: {request.custom_context}"
-        
-    session_id = chatbot_manager.create_session(context)
-    
-    # Get the initial draft
-    initial_message = "Hello! I've analyzed your event photos and context. Here is a high-impact draft for your LinkedIn post:"
-    first_ai_response = chatbot_manager.get_response(session_id, "Please provide the initial draft now.")
-    
-    return {
-        "session_id": session_id,
-        "initial_message": initial_message,
-        "first_draft": first_ai_response
-    }
-
-@app.post("/api/chat/message")
-async def chat_message(request: ChatMessageRequest):
-    """Send a message to the chatbot and get a response"""
-    response = chatbot_manager.get_response(request.session_id, request.message)
-    return {"response": response}
 
 
 # ============= LinkedIn Posting Endpoint =============

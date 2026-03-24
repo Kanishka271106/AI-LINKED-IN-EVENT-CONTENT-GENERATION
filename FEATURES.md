@@ -144,15 +144,8 @@
 - Total images analyzed
 - Total successful posts
 - Real-time updates
-- AI-powered caption generation
 
-### ✅ 8. AI-Powered Caption Generation
-- **One-Click Generation:** Analyze your event photos and context to generate a high-impact LinkedIn post immediately.
-- **Context Awareness:** The AI automatically suggests a post that highlights your event name, photo count, and specific keywords.
-- **Tone & Length:** Professionally crafted content (10-15 lines) with structured paragraphs and bolded key highlights.
-- **Smart Hashtags:** Automatically appends relevant hashtags based on your preferences.
-
-### ✅ 9. Image Processing Pipeline
+### ✅ 8. Image Processing Pipeline
 
 #### Upload Phase
 1. File validation (format, size)
@@ -295,6 +288,7 @@ MAX_UPLOAD_SIZE=50         # MB limit
 - Auto-cropping suggestions
 
 ### Feature Additions
+- AI-generated captions
 - Hashtag suggestions
 - Post scheduling
 - Company page posting

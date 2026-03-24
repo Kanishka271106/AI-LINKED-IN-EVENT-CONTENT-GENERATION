@@ -18,8 +18,8 @@ A **complete, production-ready web application** with:
 - ✅ Manual override controls
 - ✅ LinkedIn OAuth integration
 - ✅ Direct posting to LinkedIn
-- ✅ AI-powered caption generation
 - ✅ Audit logging and statistics
+- ✅ Professional corporate UI
 - ✅ Comprehensive documentation
 
 ### 📁 Complete Codebase
@@ -66,9 +66,8 @@ A **complete, production-ready web application** with:
 1. Upload 10-15 event photos
 2. AI automatically picks the best 10
 3. Review and adjust selections
-4. Generate AI caption with one click
-5. Post to LinkedIn
-6. **Save 2-3 hours per event!**
+4. Post to LinkedIn with one click
+5. **Save 2-3 hours per event!**
 
 ### Technical Perspective (Detailed)
 
@@ -278,9 +277,10 @@ Open http://localhost:8000
 
 ### Long Term (Optional)
 1. Consider enhancements:
+   - AI-generated captions
    - Hashtag suggestions
    - Post scheduling
-   - Analytics dashboard expansion
+   - Analytics dashboard
 2. Expand features based on usage
 3. Share success stories
 

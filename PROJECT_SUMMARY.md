@@ -19,7 +19,8 @@ AI-Driven-LinkedIn-Event-Content-Generation/
 ├── 📁 backend/                    # Python backend modules
 │   ├── __init__.py               # Package initializer
 │   ├── database.py               # SQLAlchemy models & DB setup
-│   └── image_processor.py        # AI quality assessment engine
+│   ├── image_processor.py        # AI quality assessment engine
+│   └── linkedin_api.py           # LinkedIn OAuth & posting API
 │
 ├── 📁 static/                     # Frontend assets
 │   ├── css/
@@ -68,8 +69,8 @@ AI-Driven-LinkedIn-Event-Content-Generation/
 ### 4️⃣ LinkedIn Integration
 - ✅ OAuth 2.0 secure authentication
 - ✅ Direct posting to personal profile
-- ✅ AI-powered caption generation
 - ✅ Support for multiple images (up to 9)
+- ✅ Custom caption support
 - ✅ Real-time auth status
 
 ### 5️⃣ Professional Web Interface
@@ -130,9 +131,10 @@ AI-Driven-LinkedIn-Event-Content-Generation/
    - Ranks by quality score
    - Selects top 10 images
    ↓
-4. Generate AI caption with one click:
-   - System analyzes photos & context
-   - High-quality draft is produced immediately
+4. User reviews selections:
+   - Sees quality metrics
+   - Can toggle selections
+   - Can add caption
    ↓
 5. One-click post to LinkedIn:
    - Authenticates via OAuth

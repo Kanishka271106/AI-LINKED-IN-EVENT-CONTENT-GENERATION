@@ -9,9 +9,15 @@ ENV DEBIAN_FRONTEND noninteractive
 # Set the working directory in the container
 WORKDIR /app
 
+# Install system dependencies for OpenCV (Headless)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install Python dependencies
 COPY requirements.txt .
-RUN echo "Bypass Docker Cache to fix Python namespace corruption 1"
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir gunicorn
 
@@ -24,5 +30,5 @@ RUN mkdir -p uploads static/css static/js templates
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Command to run the application using Gunicorn with Uvicorn workers
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]

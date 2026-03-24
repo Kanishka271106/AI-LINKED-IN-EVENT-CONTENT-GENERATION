@@ -25,17 +25,8 @@ const showAllBtn = document.getElementById('showAllBtn');
 const showSelectedBtn = document.getElementById('showSelectedBtn');
 const toastContainer = document.getElementById('toastContainer');
 const loadingOverlay = document.getElementById('loadingOverlay');
-
-// Chatbot UI elements
-const chatContainer = document.getElementById('chatContainer');
-const chatMessages = document.getElementById('chatMessages');
-const chatInput = document.getElementById('chatInput');
-const sendMessageBtn = document.getElementById('sendMessageBtn');
-const startAssistantBtn = document.getElementById('startAssistantBtn');
-const chatWelcomeState = document.getElementById('chatWelcomeState');
-let chatSessionId = null;
-let isWaitingForAI = false;
-
+const generateCaptionBtn = document.getElementById('generateCaptionBtn');
+// const postCaption = document.getElementById('postCaption'); // This was the duplicate
 const themeToggle = document.getElementById('themeToggle');
 const themeIcon = document.getElementById('themeIcon');
 const themeToggleText = document.getElementById('themeToggleText');
@@ -47,10 +38,6 @@ const viewEvents = document.getElementById('viewEvents');
 const viewAnalytics = document.getElementById('viewAnalytics');
 const eventsHistoryTable = document.getElementById('eventsHistoryTable');
 const historySearch = document.getElementById('historySearch');
-
-// Final Caption elements
-const finalCaptionSection = document.getElementById('finalCaptionSection');
-const copyCaptionBtn = document.getElementById('copyCaptionBtn');
 
 const detailsModal = document.getElementById('detailsModal');
 const detailsGallery = document.getElementById('detailsGallery');
@@ -125,93 +112,42 @@ function setupEventListeners() {
     // Post to LinkedIn
 
 
-    // Caption actions
-    if (copyCaptionBtn) copyCaptionBtn.addEventListener('click', () => {
-        postCaption.select();
-        navigator.clipboard.writeText(postCaption.value);
-        showToast('Caption copied to clipboard!', 'success');
-    });
-    if (copyCaptionBtn) copyCaptionBtn.addEventListener('click', () => {
-        postCaption.select();
-        navigator.clipboard.writeText(postCaption.value);
-        showToast('Caption copied to clipboard!', 'success');
-    });
-
     // Gallery filters
     showAllBtn.addEventListener('click', () => filterImages('all'));
     showSelectedBtn.addEventListener('click', () => filterImages('selected'));
 
-    // Chatbot actions
-    if (startAssistantBtn) {
-        startAssistantBtn.addEventListener('click', initChat);
-    }
-    
-    if (sendMessageBtn) {
-        sendMessageBtn.addEventListener('click', sendChatMessage);
-    }
-    
-    if (chatInput) {
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendChatMessage();
-            }
-        });
-        
-        chatInput.addEventListener('input', () => {
-            sendMessageBtn.disabled = chatInput.value.trim() === '' || isWaitingForAI;
-        });
-    }
-
-    // Enable Post button when user manually types in the caption box
-
-    if (postCaption) {
-        postCaption.addEventListener('input', () => {
-            if (postCaption.value.trim().length > 0 && selectedImageCount > 0) {
-                postToLinkedInBtn.disabled = false;
-            } else if (postCaption.value.trim().length === 0) {
-                postToLinkedInBtn.disabled = true;
-            }
-        });
-    }
+    // Generate Caption
+    generateCaptionBtn.addEventListener('click', generateCaption);
 
     // Include Hashtags and Context settings
-    if (includeHashtags) {
-        includeHashtags.addEventListener('change', savePreferences);
-        // Toggle custom hashtags visibility
-        includeHashtags.addEventListener('change', () => {
-            if (customHashtagsContainer) {
-                customHashtagsContainer.style.display = includeHashtags.checked ? 'block' : 'none';
-            }
-        });
-    }
+    includeHashtags.addEventListener('change', savePreferences);
+    customHashtags.addEventListener('change', savePreferences);
 
-    if (customHashtags) {
-        customHashtags.addEventListener('change', savePreferences);
-    }
+    // Toggle custom hashtags visibility
+    includeHashtags.addEventListener('change', () => {
+        customHashtagsContainer.style.display = includeHashtags.checked ? 'block' : 'none';
+    });
 
     // Editor actions
-    if (closeEditorBtn) closeEditorBtn.addEventListener('click', closeEditor);
-    if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditor);
-    if (saveEditBtn) saveEditBtn.addEventListener('click', saveEdits);
+    closeEditorBtn.addEventListener('click', closeEditor);
+    cancelEditBtn.addEventListener('click', closeEditor);
+    saveEditBtn.addEventListener('click', saveEdits);
 
     // Tool buttons
-    if (toolCrop) toolCrop.addEventListener('click', () => setTool('crop'));
-    if (toolErase) toolErase.addEventListener('click', () => setTool('erase'));
-    if (toolAutoEnhance) toolAutoEnhance.addEventListener('click', toggleAutoEnhance);
+    toolCrop.addEventListener('click', () => setTool('crop'));
+    toolErase.addEventListener('click', () => setTool('erase'));
+    toolAutoEnhance.addEventListener('click', toggleAutoEnhance);
 
     // Adjustment ranges
     [brightnessRange, contrastRange, saturationRange].forEach(range => {
-        if (range) range.addEventListener('input', updateImageFilters);
+        range.addEventListener('input', updateImageFilters);
     });
 
     // Erase canvas handlers
-    if (eraseCanvas) {
-        eraseCanvas.addEventListener('mousedown', startErasing);
-        eraseCanvas.addEventListener('mousemove', drawErase);
-        eraseCanvas.addEventListener('mouseup', stopErasing);
-        eraseCanvas.addEventListener('mouseout', stopErasing);
-    }
+    eraseCanvas.addEventListener('mousedown', startErasing);
+    eraseCanvas.addEventListener('mousemove', drawErase);
+    eraseCanvas.addEventListener('mouseup', stopErasing);
+    eraseCanvas.addEventListener('mouseout', stopErasing);
 
     // Sidebar Navigation
     console.log('Attaching sidebar listeners...', { navOverview, navEvents, navAnalytics });
@@ -720,7 +656,7 @@ async function checkAuthStatus() {
             linkedinAuthBtn.textContent = 'Connect LinkedIn';
             postToLinkedInBtn.innerHTML = `
                 <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    <path d="M24 12c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.248h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/>
                 </svg>
                 Connect LinkedIn
             `;
@@ -825,190 +761,62 @@ function checkAuthQueryParam() {
     }
 }
 
-// ==================== AI Content Assistant (Chatbot) ====================
-
-// Event Listeners for Chatbot
-if (startAssistantBtn) {
-    startAssistantBtn.addEventListener('click', initChat);
-}
-if (sendMessageBtn) {
-    sendMessageBtn.addEventListener('click', sendChatMessage);
-}
-if (chatInput) {
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendChatMessage();
-        }
-    });
-    chatInput.addEventListener('input', () => {
-        sendMessageBtn.disabled = chatInput.value.trim() === '';
-    });
-}
-
-/**
- * Appends a message to the chat UI
- */
-function appendMessage(role, content) {
-    // Remove welcome state if it exists
-    if (chatWelcomeState && chatWelcomeState.style.display !== 'none') {
-        chatWelcomeState.style.display = 'none';
-    }
-
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}`;
-    
-    // Convert newlines to br tags for display
-    const formattedContent = content.replace(/\n/g, '<br>'); // Fixed regex to replace all newlines
-    messageDiv.innerHTML = formattedContent;
-    
-    chatMessages.appendChild(messageDiv);
-    
-    // Auto-scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // If AI message, also update the final preview box
-    if (role === 'ai' && !content.includes('Typing')) {
-        postCaption.value = content;
-        finalCaptionSection.style.display = 'block';
-        postToLinkedInBtn.disabled = false;
-    }
-}
-
-/**
- * Shows the typing indicator
- */
-function showTypingIndicator() {
-    isWaitingForAI = true;
-    chatInput.disabled = true;
-    sendMessageBtn.disabled = true;
-    
-    const indicatorHtml = `
-        <div class="typing-indicator" id="typingIndicator">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-        </div>
-    `;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ai';
-    messageDiv.id = 'typingContainer';
-    messageDiv.innerHTML = indicatorHtml;
-    
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-/**
- * Removes the typing indicator
- */
-function removeTypingIndicator() {
-    isWaitingForAI = false;
-    chatInput.disabled = false;
-    sendMessageBtn.disabled = chatInput.value.trim() === '';
-    chatInput.focus();
-    
-    const typingContainer = document.getElementById('typingContainer');
-    if (typingContainer) {
-        typingContainer.remove();
-    }
-}
-
-/**
- * Initializes the chat session
- */
-async function initChat() {
+// ==================== Caption Generation ====================
+async function generateCaption(silent = false) {
     if (!currentEventId) {
-        showToast('Please select images first', 'error');
-        return;
+        if (!silent) showToast('Please upload images first', 'error');
+        return null;
     }
-    
-    // Disable start button
-    startAssistantBtn.disabled = true;
-    startAssistantBtn.innerHTML = '<span class="spinner-sm"></span> Starting...';
-    
+
+    const btn = generateCaptionBtn;
+    const originalText = btn.innerHTML;
+    const customContext = postCaption.value.trim();
+
     try {
-        const response = await fetch('/api/chat/init', {
+        if (!silent) {
+            btn.classList.add('btn-loading');
+            btn.disabled = true;
+        }
+
+        const response = await fetch('/api/generate-caption', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 event_id: currentEventId,
-                custom_context: null
+                custom_context: customContext || null
             })
         });
-        
-        if (!response.ok) throw new Error('Failed to init chat');
-        
-        const data = await response.json();
-        chatSessionId = data.session_id;
-        
-        // Setup initial UI
-        chatWelcomeState.style.display = 'none';
-        chatInput.disabled = false;
-        
-        // Show initial draft
-        appendMessage('ai', data.first_draft);
-        
-    } catch (error) {
-        console.error('Chat init error:', error);
-        showToast('Failed to start Assistant', 'error');
-        startAssistantBtn.disabled = false;
-        startAssistantBtn.textContent = 'Start Assistant';
-    }
-}
 
-/**
- * Sends a message to the AI chatbot
- */
-async function sendChatMessage() {
-    const text = chatInput.value.trim();
-    if (!text || !chatSessionId || isWaitingForAI) return;
-    
-    // Add user message to UI
-    appendMessage('user', text);
-    
-    // Clear input
-    chatInput.value = '';
-    
-    // Show typing
-    showTypingIndicator();
-    
-    try {
-        const response = await fetch('/api/chat/message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: chatSessionId,
-                message: text
-            })
-        });
-        
-        removeTypingIndicator();
-        
-        if (!response.ok) throw new Error('Failed to send message');
-        
+        if (!response.ok) throw new Error('Failed to generate caption');
+
         const data = await response.json();
-        appendMessage('ai', data.response);
+        postCaption.value = data.caption;
         
+        if (!silent) {
+            postCaption.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            showToast('Caption generated successfully!', 'success');
+        }
+        return data.caption;
+
     } catch (error) {
-        removeTypingIndicator();
-        console.error('Chat error:', error);
-        appendMessage('ai', 'Sorry, I encountered an error. Please try again.');
-        showToast('Message failed', 'error');
+        console.error('Caption error:', error);
+        if (!silent) showToast('Failed to generate caption', 'error');
+        return null;
+    } finally {
+        if (!silent) {
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
 // ==================== Post to LinkedIn ====================
 async function postToLinkedIn() {
     if (!isAuthenticated) {
-        try {
-            showToast('Starting LinkedIn connection. Please complete login in the popup window...', 'info');
-            await initiateLinkedInAuth();
-            showToast('LinkedIn connected! Automatically continuing with your post...', 'success');
-        } catch (e) {
-            console.error('Auth failed or cancelled before posting', e);
-            return;
-        }
+        showToast('Please connect to LinkedIn first', 'error');
+        await initiateLinkedInAuth();
+        return;
     }
 
     if (selectedImageCount === 0) {
