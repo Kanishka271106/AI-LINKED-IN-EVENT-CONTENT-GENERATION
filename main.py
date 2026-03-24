@@ -1,3 +1,11 @@
+import sys
+import subprocess
+try:
+    # Aggressively purge old google SDKs from the Railway cache to fix namespace collision
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "google-generativeai", "google-ai-generativelanguage"])
+except Exception:
+    pass
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
