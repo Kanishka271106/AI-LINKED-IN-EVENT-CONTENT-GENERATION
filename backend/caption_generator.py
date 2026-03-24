@@ -8,7 +8,7 @@ class CaptionGenerator:
     """AI-powered caption generator for LinkedIn posts"""
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
         self.is_configured = False
         
         if self.api_key:
