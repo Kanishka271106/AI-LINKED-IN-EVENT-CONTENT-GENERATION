@@ -1,10 +1,19 @@
 import sys
 import subprocess
+import os
+
 try:
-    # Aggressively purge old google SDKs from the Railway cache to fix namespace collision
-    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "google-generativeai", "google-ai-generativelanguage"])
-except Exception:
-    pass
+    print("================ RUNTIME DEPENDENCY FIX ================", flush=True)
+    # Physically force installation of google-genai directly inside the runtime container
+    subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "google-generativeai"], stdout=sys.stdout)
+    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", "google-genai", "google-auth", "pydantic>=2.0"], stdout=sys.stdout)
+    
+    # Print the installed packages directly to the Railway Deploy logs so we can see what's happening
+    output = subprocess.check_output([sys.executable, "-m", "pip", "list"])
+    print(output.decode("utf-8"), flush=True)
+    print("========================================================", flush=True)
+except Exception as e:
+    print(f"Runtime fix failed: {e}", flush=True)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
