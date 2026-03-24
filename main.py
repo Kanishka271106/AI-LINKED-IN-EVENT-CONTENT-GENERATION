@@ -703,8 +703,8 @@ async def generate_caption_endpoint(request: Request, capt_req: CaptionRequest, 
     caption = caption_generator.generate_caption(
         event_name=event.name,
         num_photos=selected_count,
-        keywords=request.keywords,
-        custom_context=request.custom_context,
+        keywords=capt_req.keywords,
+        custom_context=capt_req.custom_context,
         preferences=preferences
     )
     

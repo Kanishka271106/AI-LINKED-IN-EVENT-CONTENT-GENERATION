@@ -632,7 +632,8 @@ async function generateCaption(silent = false) {
             body: JSON.stringify({ 
                 event_id: currentEventId,
                 event_type: eventType ? eventType.value : "General",
-                post_vibe: postVibe ? postVibe.value : "Professional"
+                post_vibe: postVibe ? postVibe.value : "Professional",
+                custom_context: postCaption.value.trim() || null
             })
         });
 
