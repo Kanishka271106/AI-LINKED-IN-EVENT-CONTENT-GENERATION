@@ -176,7 +176,7 @@ async def upload_images(
             "path": file_path
         }
 
-    with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as executor:
+    with ThreadPoolExecutor(max_workers=min(3, os.cpu_count() or 1)) as executor:
         saved_files_results = list(executor.map(save_file, files))
     
     saved_files = [f for f in saved_files_results if f is not None]
@@ -214,7 +214,7 @@ async def upload_images(
         }
 
     # Enhancement can be CPU heavy, but IO bound for saving
-    with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as executor:
+    with ThreadPoolExecutor(max_workers=min(3, os.cpu_count() or 1)) as executor:
         image_data_list = list(executor.map(enhance_and_create_image, processing_results["all_results"]))
 
     # Save to DB (must be in main thread or handle session carefully)

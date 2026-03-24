@@ -23,22 +23,23 @@ class ImageProcessor:
         Returns dict with quality scores
         """
         try:
-            # Load with PIL first as it's generally faster for metadata/initial load
-            img_pil = Image.open(image_path)
-            
-            # Optimization: Resize for analysis to speed up OpenCV and face detection
-            # We don't save this, just use it for metric calculation
-            max_dim = 1024
-            w, h = img_pil.size
-            if max(w, h) > max_dim:
-                scale = max_dim / max(w, h)
-                analysis_img_pil = img_pil.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-            else:
-                analysis_img_pil = img_pil
-            
-            # Convert PIL to BGR for OpenCV
-            img_cv = cv2.cvtColor(np.array(analysis_img_pil), cv2.COLOR_RGB2BGR)
-            
+            # Use 'with' to ensure the file handle is closed promptly
+            with Image.open(image_path) as img_pil:
+                # Optimization: Resize for analysis to speed up OpenCV and face detection
+                # We use BILINEAR instead of LANCZOS for a massive speed/memory boost during analysis
+                max_dim = 1024
+                w, h = img_pil.size
+                if max(w, h) > max_dim:
+                    scale = max_dim / max(w, h)
+                    analysis_img_pil = img_pil.resize((int(w * scale), int(h * scale)), Image.BILINEAR)
+                else:
+                    analysis_img_pil = img_pil.copy()
+                
+                # Convert PIL to BGR for OpenCV
+                img_cv = cv2.cvtColor(np.array(analysis_img_pil), cv2.COLOR_RGB2BGR)
+                
+                # Calculate perceptual hash for duplicate detection (reusing loaded image)
+                img_hash = str(imagehash.average_hash(analysis_img_pil))
         except Exception as e:
             print(f"   [ERROR] Failed to load image {image_path}: {e}")
             return {
@@ -58,9 +59,6 @@ class ImageProcessor:
         sharpness = self._calculate_sharpness(img_cv)
         brightness = self._calculate_brightness(analysis_img_pil)
         contrast = self._calculate_contrast(analysis_img_pil)
-        
-        # Calculate perceptual hash for duplicate detection (reusing loaded image)
-        img_hash = str(imagehash.average_hash(analysis_img_pil))
         
         # Detect faces for specialized analysis
         faces = self._detect_faces_raw(img_cv)
@@ -83,6 +81,9 @@ class ImageProcessor:
             brightness_score * 0.15 +
             contrast_score * 0.15
         )
+        
+        # Explicitly free memory for the large OpenCV array
+        del img_cv
         
         return {
             "quality_score": round(float(quality_score), 3),
@@ -350,8 +351,8 @@ class ImageProcessor:
                 }
 
         # Use ThreadPoolExecutor for parallel quality assessment
-        # Max workers increased for better throughput on multi-core systems
-        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as executor:
+        # Reduced max_workers to 3 to prevent OOM on laptops/small servers
+        with ThreadPoolExecutor(max_workers=min(3, os.cpu_count() or 1)) as executor:
             results = list(executor.map(process_single, image_paths))
         
         # Efficient Duplicate Detection using pre-calculated hashes

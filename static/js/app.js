@@ -345,6 +345,12 @@ async function processFiles(files) {
         });
 
         xhr.open('POST', '/api/upload');
+        xhr.timeout = 120000; // 2 minute timeout for large batches
+        
+        xhr.ontimeout = () => {
+            reject(new Error('Upload timed out. Try fewer images or check your connection.'));
+        };
+
         xhr.send(formData);
 
         const data = await uploadPromise;
