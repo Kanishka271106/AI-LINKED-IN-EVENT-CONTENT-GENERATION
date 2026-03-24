@@ -580,16 +580,14 @@ async function enhanceImage(index, btn) {
         // Add a small fade effect during reload
         img.style.opacity = '0.5';
         img.src = `${data.url}?t=${Date.now()}`; // Cache busting
-
+ 
         img.onload = () => {
             img.style.opacity = '1';
+            btn.classList.remove('loading');
+            btn.classList.add('enhanced');
+            btn.title = 'Enhanced';
+            showToast('Super-Premium Enhancement Applied!', 'success');
         };
-
-        btn.classList.remove('loading');
-        btn.classList.add('enhanced');
-        btn.title = 'Enhanced';
-
-        showToast('Image enhanced successfully!', 'success');
 
     } catch (error) {
         console.error('Enhance error:', error);
