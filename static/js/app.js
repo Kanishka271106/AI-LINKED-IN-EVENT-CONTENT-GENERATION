@@ -62,6 +62,15 @@ const brightnessRange = document.getElementById('brightnessRange');
 const contrastRange = document.getElementById('contrastRange');
 const saturationRange = document.getElementById('saturationRange');
 
+// AI Chat Assistant Elements
+const chatModal = document.getElementById('chatModal');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const chatSendBtn = document.getElementById('chatSendBtn');
+const chatCloseBtn = document.getElementById('chatCloseBtn');
+const chatOpenBtn = document.getElementById('chatOpenBtn');
+let currentChatSessionId = null;
+
 // ==================== Editor State ====================
 let cropper = null;
 let currentEditIndex = null;
@@ -115,6 +124,13 @@ function setupEventListeners() {
     linkedinAuthBtn.addEventListener('click', initiateLinkedInAuth);
 
     // Post to LinkedIn
+    if (postToLinkedInBtn) postToLinkedInBtn.addEventListener('click', postToLinkedIn);
+
+    // AI Chat Assistant
+    if (chatSendBtn) chatSendBtn.addEventListener('click', sendMessage);
+    if (chatInput) chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
+    if (chatOpenBtn) chatOpenBtn.addEventListener('click', openChat);
+    if (chatCloseBtn) chatCloseBtn.addEventListener('click', () => chatModal.style.display = 'none');
 
 
     // Gallery filters
@@ -599,6 +615,132 @@ async function enhanceImage(index, btn) {
         btn.classList.remove('loading');
         showToast('Failed to enhance image', 'error');
     }
+}
+
+async function generateCaption(silent = false) {
+    if (!currentEventId) return;
+    
+    try {
+        if (!silent) {
+            generateCaptionBtn.classList.add('loading');
+            generateCaptionBtn.disabled = true;
+        }
+
+        const response = await fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                event_id: currentEventId,
+                event_type: eventType ? eventType.value : "General",
+                post_vibe: postVibe ? postVibe.value : "Professional"
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to generate caption');
+        const data = await response.json();
+        
+        postCaption.value = data.caption;
+        if (!silent) showToast('AI Caption Generated!', 'success');
+        return data.caption;
+
+    } catch (error) {
+        console.error('Caption error:', error);
+        if (!silent) showToast('Failed to generate AI caption', 'error');
+    } finally {
+        if (!silent) {
+            generateCaptionBtn.classList.remove('loading');
+            generateCaptionBtn.disabled = false;
+        }
+    }
+}
+
+async function openChat() {
+    if (!currentEventId) {
+        showToast('Please upload an event first', 'warning');
+        return;
+    }
+
+    chatModal.style.display = 'flex';
+    chatMessages.innerHTML = `
+        <div class="chat-message ai-message">
+            <div class="message-content">Initializing your AI Assistant...</div>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/api/ai-chat/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: currentEventId })
+        });
+        
+        if (!response.ok) throw new Error('Failed to start chat session');
+        const data = await response.json();
+        
+        currentChatSessionId = data.session_id;
+        
+        // Replace loading message with initial AI message
+        chatMessages.innerHTML = '';
+        addMessageToChat('ai', data.initial_message);
+
+    } catch (error) {
+        console.error('Chat session error:', error);
+        addMessageToChat('ai', 'Sorry, I failed to initialize. Please check your AI configuration.');
+    }
+}
+
+async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text || !currentChatSessionId) return;
+
+    chatInput.value = '';
+    addMessageToChat('user', text);
+
+    // Show typing indicator
+    const typingId = 'typing-' + Date.now();
+    const typingMsg = document.createElement('div');
+    typingMsg.id = typingId;
+    typingMsg.className = 'chat-message ai-message';
+    typingMsg.innerHTML = '<div class="message-content"><span class="typing-dots"></span></div>';
+    chatMessages.appendChild(typingMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    try {
+        const response = await fetch('/api/ai-chat/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                session_id: currentChatSessionId,
+                message: text 
+            })
+        });
+
+        const data = await response.json();
+        
+        // Remove typing indicator
+        const indicator = document.getElementById(typingId);
+        if (indicator) indicator.remove();
+
+        addMessageToChat('ai', data.response);
+
+    } catch (error) {
+        console.error('Chat message error:', error);
+        const indicator = document.getElementById(typingId);
+        if (indicator) indicator.remove();
+        addMessageToChat('ai', 'Sorry, I lost connection to the AI. Please try again.');
+    }
+}
+
+function addMessageToChat(role, text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-message ${role}-message`;
+    
+    // Format text with line breaks
+    const formattedText = text.replace(/\n/g, '<br>');
+    
+    msgDiv.innerHTML = `<div class="message-content">${formattedText}</div>`;
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function updateSelectedCount() {

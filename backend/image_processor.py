@@ -397,3 +397,44 @@ class ImageProcessor:
                 'selected': len(best_images)
             }
         }
+
+    def enhance_image(self, image_path: str, fast: bool = False) -> str:
+        """
+        Premium Auto-Enhancement using Bilateral Filtering and CLAHE.
+        Returns the path to the enhanced image.
+        """
+        try:
+            # Load image
+            img = cv2.imread(image_path)
+            if img is None:
+                raise ValueError("Could not read image")
+
+            # 1. High-Performance Bilateral Filtering (Denoising while preserving edges)
+            enhanced = cv2.bilateralFilter(img, d=9, sigmaColor=75, sigmaSpace=75)
+
+            # 2. CLAHE (Contrast Limited Adaptive Histogram Equalization)
+            lab = cv2.cvtColor(enhanced, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            cl = clahe.apply(l)
+            limg = cv2.merge((cl, a, b))
+            enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+            # 3. Subtle Vibrance & Warmth boost
+            hsv = cv2.cvtColor(enhanced, cv2.COLOR_BGR2HSV).astype(np.float32)
+            h, s, v = cv2.split(hsv)
+            s *= 1.15
+            v *= 1.05
+            s = np.clip(s, 0, 255)
+            v = np.clip(v, 0, 255)
+            enhanced = cv2.cvtColor(cv2.merge([h, s, v]).astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+            # Save the enhanced image
+            ext = os.path.splitext(image_path)[1]
+            enhanced_path = image_path.replace(ext, f"_enhanced{ext}")
+            cv2.imwrite(enhanced_path, enhanced)
+
+            return enhanced_path
+        except Exception as e:
+            print(f"Error enhancing image: {e}")
+            return image_path

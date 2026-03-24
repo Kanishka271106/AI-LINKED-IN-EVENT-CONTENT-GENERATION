@@ -23,6 +23,7 @@ from backend.database import init_db, get_db, Event, Image, Post, LinkedInToken
 from backend.image_processor import ImageProcessor
 from backend.linkedin_api import LinkedInAPI
 from backend.caption_generator import CaptionGenerator
+from backend.chatbot_manager import ChatbotManager
 from PIL import Image as PILImage, ImageEnhance
 import io
 import base64
@@ -56,6 +57,13 @@ class EditRequest(BaseModel):
     auto_enhance: bool
     mask: Optional[str] = None
 
+class AIChatSessionRequest(BaseModel):
+    event_id: int
+
+class AIChatMessageRequest(BaseModel):
+    session_id: str
+    message: str
+
 # Create necessary directories
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 STATIC_DIR = "static"
@@ -81,6 +89,7 @@ image_processor = ImageProcessor(
 )
 linkedin_api = LinkedInAPI()
 caption_generator = CaptionGenerator()
+chatbot_manager = ChatbotManager()
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -351,12 +360,19 @@ async def toggle_image_selection(image_id: int, request: Request, db: Session = 
 
 
 @app.post("/api/images/{image_id}/enhance")
-async def enhance_image_endpoint(image_id: int, db: Session = Depends(get_db)):
-    """Manually enhance an image"""
+async def enhance_image_endpoint(image_id: int, req: Request, db: Session = Depends(get_db)):
+    """Manually enhance an image (Scoped to session user)"""
+    email = req.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    image = db.query(Image).join(Event).filter(
+        Image.id == image_id,
+        Event.user_email == email
+    ).first()
     
-    image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=404, detail="Image not found or access denied")
     
     try:
         # Enhance the image
@@ -680,8 +696,8 @@ async def generate_caption_endpoint(request: Request, capt_req: CaptionRequest, 
     preferences = {
         "include_hashtags": prefs_record.include_hashtags if prefs_record else True,
         "custom_hashtags": prefs_record.custom_hashtags if prefs_record else "",
-        "event_type": request.event_type or "General",
-        "post_vibe": request.post_vibe or "Professional"
+        "event_type": capt_req.event_type or "General",
+        "post_vibe": capt_req.post_vibe or "Professional"
     }
     
     caption = caption_generator.generate_caption(
@@ -693,6 +709,49 @@ async def generate_caption_endpoint(request: Request, capt_req: CaptionRequest, 
     )
     
     return {"caption": caption}
+
+
+# ============= AI Conversational Assistant =============
+
+@app.post("/api/ai-chat/session")
+async def create_chat_session(req: Request, chat_req: AIChatSessionRequest, db: Session = Depends(get_db)):
+    """Initialize a new AI chat session for an event"""
+    email = req.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    event = db.query(Event).filter(Event.id == chat_req.event_id, Event.user_email == email).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found or access denied")
+    
+    # Create context for the AI
+    context = f"Event Name: {event.name}\nPhotos Uploaded: {event.total_uploaded}\n"
+    
+    # Get any keywords if available
+    # (Assuming we might want to pass more context later)
+    
+    session_id = chatbot_manager.create_session(context)
+    return {"session_id": session_id, "initial_message": chatbot_manager.get_history(session_id)[-1]["parts"][0] if chatbot_manager.get_history(session_id) else "Hello! How can I help with your post?"}
+
+@app.post("/api/ai-chat/message")
+async def send_chat_message(req: Request, msg_req: AIChatMessageRequest):
+    """Send a message to the AI assistant"""
+    email = req.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    response = chatbot_manager.get_response(msg_req.session_id, msg_req.message)
+    return {"response": response}
+
+@app.get("/api/ai-chat/history/{session_id}")
+async def get_chat_history(session_id: str, req: Request):
+    """Get chat history for a session"""
+    email = req.session.get("user_email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    history = chatbot_manager.get_history(session_id)
+    return {"history": history}
 
 
 # ============= LinkedIn Posting Endpoint =============
