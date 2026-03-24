@@ -8,7 +8,7 @@ class ChatbotManager:
     """Manages conversational AI sessions for LinkedIn content generation"""
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
         self.sessions: Dict[str, List[Dict[str, str]]] = {}
         self.is_configured = False
         
