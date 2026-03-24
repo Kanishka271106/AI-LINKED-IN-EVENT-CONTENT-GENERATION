@@ -191,25 +191,27 @@ function setupEventListeners() {
     }
 
     // Editor actions
-    closeEditorBtn.addEventListener('click', closeEditor);
-    cancelEditBtn.addEventListener('click', closeEditor);
-    saveEditBtn.addEventListener('click', saveEdits);
+    if (closeEditorBtn) closeEditorBtn.addEventListener('click', closeEditor);
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditor);
+    if (saveEditBtn) saveEditBtn.addEventListener('click', saveEdits);
 
     // Tool buttons
-    toolCrop.addEventListener('click', () => setTool('crop'));
-    toolErase.addEventListener('click', () => setTool('erase'));
-    toolAutoEnhance.addEventListener('click', toggleAutoEnhance);
+    if (toolCrop) toolCrop.addEventListener('click', () => setTool('crop'));
+    if (toolErase) toolErase.addEventListener('click', () => setTool('erase'));
+    if (toolAutoEnhance) toolAutoEnhance.addEventListener('click', toggleAutoEnhance);
 
     // Adjustment ranges
     [brightnessRange, contrastRange, saturationRange].forEach(range => {
-        range.addEventListener('input', updateImageFilters);
+        if (range) range.addEventListener('input', updateImageFilters);
     });
 
     // Erase canvas handlers
-    eraseCanvas.addEventListener('mousedown', startErasing);
-    eraseCanvas.addEventListener('mousemove', drawErase);
-    eraseCanvas.addEventListener('mouseup', stopErasing);
-    eraseCanvas.addEventListener('mouseout', stopErasing);
+    if (eraseCanvas) {
+        eraseCanvas.addEventListener('mousedown', startErasing);
+        eraseCanvas.addEventListener('mousemove', drawErase);
+        eraseCanvas.addEventListener('mouseup', stopErasing);
+        eraseCanvas.addEventListener('mouseout', stopErasing);
+    }
 
     // Sidebar Navigation
     console.log('Attaching sidebar listeners...', { navOverview, navEvents, navAnalytics });
@@ -999,9 +1001,14 @@ async function sendChatMessage() {
 // ==================== Post to LinkedIn ====================
 async function postToLinkedIn() {
     if (!isAuthenticated) {
-        showToast('Please connect to LinkedIn first', 'error');
-        await initiateLinkedInAuth();
-        return;
+        try {
+            showToast('Starting LinkedIn connection. Please complete login in the popup window...', 'info');
+            await initiateLinkedInAuth();
+            showToast('LinkedIn connected! Automatically continuing with your post...', 'success');
+        } catch (e) {
+            console.error('Auth failed or cancelled before posting', e);
+            return;
+        }
     }
 
     if (selectedImageCount === 0) {
