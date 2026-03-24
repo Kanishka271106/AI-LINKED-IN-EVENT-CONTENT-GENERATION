@@ -47,6 +47,10 @@ load_dotenv()
 # Initialize FastAPI app
 app = FastAPI(title="Curator", version="1.0.0")
 
+# Mount static files (CSS, JS, Images)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 class CropData(BaseModel):
     x: int
     y: int
