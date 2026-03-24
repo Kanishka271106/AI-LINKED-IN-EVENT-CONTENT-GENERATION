@@ -274,10 +274,18 @@ async def upload_images(
 
 @app.get("/api/events/{event_id}/images")
 async def get_event_images(event_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get all images for an event if owned by the current session user"""
+    """Get all images for an event (Graceful fallback if no session)"""
     email = request.session.get("user_email")
     if not email:
-        raise HTTPException(status_code=401, detail="Session expired")
+        return {
+            "event_id": event_id,
+            "event_name": "Login required",
+            "created_at": datetime.now().isoformat(),
+            "total_images": 0,
+            "total_selected": 0,
+            "user_email": None,
+            "images": []
+        }
 
     event = db.query(Event).filter(Event.id == event_id, Event.user_email == email).first()
     if not event:
@@ -811,8 +819,23 @@ async def get_logs(request: Request, db: Session = Depends(get_db)):
 async def get_stats(request: Request, db: Session = Depends(get_db)):
     """Get application statistics for the authenticated session user"""
     email = request.session.get("user_email")
+    
+    # Global stats
+    total_events = db.query(Event).count()
+    total_images = db.query(Image).count()
+    total_posts = db.query(Post).filter(Post.status == "success").count()
+    
+    # Check general authentication for UI purposes
     if not email:
-        return {"user_posts": 0, "user_images": 0, "authenticated": False, "user_email": None}
+        return {
+            "total_events": total_events,
+            "total_images_processed": total_images,
+            "total_posts": total_posts,
+            "user_posts": 0, 
+            "user_images": 0, 
+            "authenticated": False, 
+            "user_email": None
+        }
 
     # User-specific stats
     user_email = email
@@ -842,7 +865,7 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
         "total_posts": total_posts,
         "user_posts": user_posts,
         "user_images": user_images,
-        "authenticated": last_token is not None,
+        "authenticated": True,
         "user_email": user_email
     }
 
