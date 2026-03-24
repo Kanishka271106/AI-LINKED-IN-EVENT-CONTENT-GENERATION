@@ -41,12 +41,17 @@ class CaptionGenerator:
             
     def _create_prompt(self, event_name: str, num_photos: int, keywords: Optional[List[str]], custom_context: Optional[str], preferences: Optional[dict]) -> str:
         """Create a precision prompt for the LLM to generate paragraph-style captions"""
-        include_hashtags = preferences.get("include_hashtags", True) if preferences else True
-        custom_hashtags = preferences.get("custom_hashtags", "") if preferences else ""
+        preferences = preferences or {}
+        include_hashtags = preferences.get("include_hashtags", True)
+        custom_hashtags = preferences.get("custom_hashtags", "")
+        event_type = preferences.get("event_type", "General")
+        post_vibe = preferences.get("post_vibe", "Professional")
 
         base_prompt = f"""
         Objective: Write a highly engaging, custom LinkedIn post.
         - Event Name: {event_name}
+        - Event Category: {event_type}
+        - Post Tone/Vibe: {post_vibe}
         - Photo count shared: {num_photos}
         """
         
@@ -56,25 +61,24 @@ class CaptionGenerator:
         base_prompt += f"""
         
         CRITICAL Guidelines:
-        1. ANALYZE THE EVENT CATEGORY: Examine the Event Name ({event_name}) and the User's Opinion.
-           - If it's a DANCE event: Focus on the rhythm, the performance, the energy, the choreo, the stage, and the artistic expression.
-           - If it's a MUSIC / SINGING event: Focus on the vocals, the melody, the vibration, the connection with the audience, and the soul.
-           - If it's a SPORTS / FITNESS event: Focus on the sweat, the dedication, the movement, the adrenaline, and the physical achievement.
-           - ONLY if it's a TECH / CORPORATE event: Use professional networking or industry language.
-        2. ADAPT THE TONE: Your vocabulary and insights MUST perfectly match the specific event type. DO NOT use generic business/tech jargon (e.g. "cutting-edge insights", "networking", "industry leaders") unless it is explicitly an industry/tech event! No "deep dives" or "key takeaways" for a dance performance!
-        3. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs for readability.
-        4. Content Expansion: Elaborate on the event, why the {num_photos} photos matter, the atmosphere, and the memories. Be highly expressive and authentic.
-        5. Style: Engaging and authentic for LinkedIn, but perfectly tailored to the event's vibe (e.g. energetic and passionate for dance, appreciative for music, professional for tech).
+        1. STYLE THE VOICE: Your vocabulary and tone MUST match the Event Category ({event_type}) and Post Vibe ({post_vibe}).
+           - If it's DANCE: Focus on choreography, rhythm, and stage presence.
+           - If it's MUSIC: Focus on vocals, instruments, and the auditory experience.
+           - If it's SPORTS: Focus on movement, athleticism, and the "win".
+           - Use the Vibe ({post_vibe}) to determine if you should be serious, excited, humble, or tell a narrative story.
+        2. NO TECH JARGON: Do NOT use generic business/tech jargon (e.g. "cutting-edge", "networking", "industry leaders") unless the category is explicitly Tech!
+        3. Output Length: The post MUST be substantial, at least 10 to 15 lines long. Break it into multiple paragraphs.
+        4. Content Expansion: Elaborate on the event atmosphere and the {num_photos} highlights shared. Be expressive.
+        5. Formatting: Use **bolding** for the event name ({event_name}). Use appropriate emojis for the category ({event_type}).
         6. No Intro/Outro: Do NOT include "Here is your caption".
-        7. Formatting: Use **bolding** for emphasis on the event name, and use appropriate emojis (e.g. 💃🕺 for dance, 🎤🎵 for music, ⚽🏋️ for sports, 💻🚀 for tech).
         """
         
         if include_hashtags:
-            base_prompt += "\n6. Hashtags: Include 3-5 relevant hashtags at the VERY END, separated from the paragraph by a line break."
+            base_prompt += "\n7. Hashtags: Include 3-5 relevant hashtags at the VERY END."
             if custom_hashtags:
                 base_prompt += f" Must include: {custom_hashtags}"
         else:
-            base_prompt += "\n6. No Hashtags: Do NOT include any hashtags."
+            base_prompt += "\n7. No Hashtags: Do NOT include any hashtags."
             
         if keywords:
             base_prompt += f"\nKeywords to include: {', '.join(keywords)}\n"

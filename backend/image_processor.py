@@ -59,6 +59,9 @@ class ImageProcessor:
         brightness = self._calculate_brightness(analysis_img_pil)
         contrast = self._calculate_contrast(analysis_img_pil)
         
+        # Calculate perceptual hash for duplicate detection (reusing loaded image)
+        img_hash = str(imagehash.average_hash(analysis_img_pil))
+        
         # Detect faces for specialized analysis
         faces = self._detect_faces_raw(img_cv)
         face_count = len(faces)
@@ -89,6 +92,7 @@ class ImageProcessor:
             "brightness_score": round(float(brightness_score), 3),
             "contrast_score": round(float(contrast_score), 3),
             "face_count": face_count,
+            "hash": img_hash,
             "is_blur": bool(sharpness < self.blur_threshold),
             "is_high_quality": bool(quality_score >= self.quality_threshold)
         }
@@ -346,17 +350,35 @@ class ImageProcessor:
                 }
 
         # Use ThreadPoolExecutor for parallel quality assessment
-        # Max workers limited to avoid memory issues with many large images
-        with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as executor:
+        # Max workers increased for better throughput on multi-core systems
+        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as executor:
             results = list(executor.map(process_single, image_paths))
         
-        # Detect duplicates
-        duplicates = self.detect_duplicates(image_paths)
-        duplicate_paths = set([dup[1] for dup in duplicates])
+        # Efficient Duplicate Detection using pre-calculated hashes
+        duplicates = []
+        seen_hashes = {} # hash -> path
         
-        # Mark duplicates in results
         for result in results:
-            result['is_duplicate'] = result['path'] in duplicate_paths
+            if "error" in result: continue
+            
+            img_hash = result.get('hash')
+            current_path = result.get('path')
+            
+            # Check for similar hashes
+            is_dup = False
+            if img_hash:
+                h1 = imagehash.hex_to_hash(img_hash)
+                for existing_hash_hex, existing_path in seen_hashes.items():
+                    h2 = imagehash.hex_to_hash(existing_hash_hex)
+                    if h1 - h2 <= self.duplicate_threshold:
+                        duplicates.append((existing_path, current_path))
+                        is_dup = True
+                        break
+                
+                if not is_dup:
+                    seen_hashes[img_hash] = current_path
+            
+            result['is_duplicate'] = is_dup
         
         # Select best images
         best_images = self.select_best_images(results)

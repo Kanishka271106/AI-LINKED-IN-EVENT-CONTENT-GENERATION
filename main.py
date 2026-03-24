@@ -156,13 +156,11 @@ async def upload_images(
     event_dir = os.path.join(UPLOAD_DIR, f"event_{event.id}")
     os.makedirs(event_dir, exist_ok=True)
     
-    # Save uploaded files
-    saved_files = []
-    for file in files:
-        # Validate file type
+    # Save uploaded files in parallel for better performance
+    def save_file(file):
         if not file.content_type.startswith("image/"):
-            continue
-        
+            return None
+            
         # Generate unique filename
         file_ext = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_ext}"
@@ -171,12 +169,17 @@ async def upload_images(
         # Save file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        saved_files.append({
+            
+        return {
             "filename": file.filename,
             "unique_filename": unique_filename,
             "path": file_path
-        })
+        }
+
+    with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as executor:
+        saved_files_results = list(executor.map(save_file, files))
+    
+    saved_files = [f for f in saved_files_results if f is not None]
     
     # Process images with AI
     image_paths = [f["path"] for f in saved_files]
@@ -552,6 +555,8 @@ class CaptionRequest(BaseModel):
     event_id: int
     keywords: Optional[List[str]] = None
     custom_context: Optional[str] = None
+    event_type: Optional[str] = "General"
+    post_vibe: Optional[str] = "Professional"
 
 @app.get("/api/preferences")
 async def get_preferences(db: Session = Depends(get_db)):
@@ -563,12 +568,16 @@ async def get_preferences(db: Session = Depends(get_db)):
         # Return default preferences
         return {
             "include_hashtags": True,
-            "custom_hashtags": ""
+            "custom_hashtags": "",
+            "event_type": "General",
+            "post_vibe": "Professional"
         }
     
     return {
         "include_hashtags": prefs.include_hashtags,
-        "custom_hashtags": prefs.custom_hashtags or ""
+        "custom_hashtags": prefs.custom_hashtags or "",
+        "event_type": getattr(prefs, "event_type", "General"),
+        "post_vibe": getattr(prefs, "post_vibe", "Professional")
     }
 
 @app.post("/api/preferences")
@@ -615,7 +624,9 @@ async def generate_caption_endpoint(request: CaptionRequest, db: Session = Depen
     prefs_record = db.query(UserPreference).order_by(UserPreference.updated_at.desc()).first()
     preferences = {
         "include_hashtags": prefs_record.include_hashtags if prefs_record else True,
-        "custom_hashtags": prefs_record.custom_hashtags if prefs_record else ""
+        "custom_hashtags": prefs_record.custom_hashtags if prefs_record else "",
+        "event_type": request.event_type or "General",
+        "post_vibe": request.post_vibe or "Professional"
     }
     
     caption = caption_generator.generate_caption(

@@ -41,6 +41,8 @@ const historySearch = document.getElementById('historySearch');
 const includeHashtags = document.getElementById('includeHashtags');
 const customHashtags = document.getElementById('customHashtags');
 const customHashtagsContainer = document.getElementById('customHashtagsContainer');
+const eventType = document.getElementById('eventType');
+const postVibe = document.getElementById('postVibe');
 
 const detailsModal = document.getElementById('detailsModal');
 const detailsGallery = document.getElementById('detailsGallery');
@@ -187,6 +189,9 @@ async function loadPreferences() {
 
         includeHashtags.checked = data.include_hashtags;
         customHashtags.value = data.custom_hashtags || '';
+        
+        if (data.event_type && eventType) eventType.value = data.event_type;
+        if (data.post_vibe && postVibe) postVibe.value = data.post_vibe;
 
         // Update visibility
         customHashtagsContainer.style.display = data.include_hashtags ? 'block' : 'none';
@@ -228,13 +233,10 @@ function updateThemeUI(isDark) {
 async function savePreferences() {
     try {
         const payload = {
-            tone: "Professional", // Default
-            length: "Medium",      // Default for backend
-            audience: "All Professionals", // Default for backend
-            cta_type: "None",    // Default for backend
-            focus: "General",     // Default for backend
             include_hashtags: includeHashtags.checked,
-            custom_hashtags: customHashtags.value
+            custom_hashtags: customHashtags.value,
+            event_type: eventType.value,
+            post_vibe: postVibe.value
         };
 
         console.log('Saving preferences:', payload);
@@ -786,7 +788,9 @@ async function generateCaption(silent = false) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 event_id: currentEventId,
-                custom_context: customContext || null
+                custom_context: customContext || null,
+                event_type: eventType.value,
+                post_vibe: postVibe.value
             })
         });
 
