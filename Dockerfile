@@ -11,6 +11,7 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
+RUN echo "Bypass Docker Cache to fix Python namespace corruption 1"
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir gunicorn
 
