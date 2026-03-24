@@ -1,5 +1,6 @@
+from google import genai
 import os
-import google.generativeai as genai
+
 from typing import List, Optional
 import random
 
