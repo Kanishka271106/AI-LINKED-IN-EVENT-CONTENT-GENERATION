@@ -1,6 +1,5 @@
-from google import genai
+import google.generativeai as genai
 import os
-
 from typing import List, Dict, Optional
 import uuid
 
@@ -15,7 +14,7 @@ class ChatbotManager:
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+                self.model = genai.GenerativeModel('models/gemini-pro')
                 self.is_configured = True
             except Exception as e:
                 print(f"Failed to configure Gemini API: {e}")
