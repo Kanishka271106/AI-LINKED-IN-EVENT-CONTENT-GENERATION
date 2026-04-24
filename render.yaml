@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ai-linkedin-event-curator
+    env: docker
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        value: https://ai-linked-in-event-content-generation.onrender.com/linkedin/callback
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_SECRET_KEY
+        generateValue: true
+    # Add persistent disk for the SQLite database if needed
+    # disk:
+    #   name: data
+    #   mountPath: /app/data
+    #   sizeGB: 1
